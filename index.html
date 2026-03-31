@@ -16,13 +16,12 @@ body {
   text-align:center;
 }
 
-/* 🔥 FLEX RESPONSIVE */
+/* CARD */
 .container {
   display:flex;
   flex-wrap:wrap;
   justify-content:center;
   gap:15px;
-  padding:10px;
 }
 
 .card {
@@ -30,36 +29,35 @@ body {
   padding:15px;
   border-radius:15px;
   width:150px;
-  transition:0.3s;
 }
 
-.card h3 { margin:5px; }
-.card div { font-size:20px; }
+.danger { background:red !important; }
+.safe { background:green !important; }
 
-.danger { background:#dc2626 !important; }
-.safe { background:#16a34a !important; }
+/* CHART BOX */
+.chart-box {
+  width:95%;
+  max-width:900px;
+  margin:20px auto;
+  background:#1e293b;
+  padding:15px;
+  border-radius:15px;
+}
 
-/* 📊 TABLE */
+/* TABLE */
 table {
   width:95%;
   margin:auto;
   border-collapse:collapse;
-  font-size:14px;
 }
-
 th,td {
   border:1px solid white;
   padding:6px;
 }
 
-/* 📱 MOBILE MODE */
+/* MOBILE */
 @media(max-width:600px){
-  .card {
-    width:100%;
-  }
-  table {
-    font-size:12px;
-  }
+  .card { width:100%; }
 }
 </style>
 </head>
@@ -74,114 +72,49 @@ th,td {
   <div class="card" id="gasCard"><h3>Gas</h3><div id="gas"></div></div>
 </div>
 
-<!-- 🔥 KETERANGAN GAS -->
-<div style="margin:15px; text-align:left; max-width:500px; margin:auto;">
-<h3>Keterangan Gas:</h3>
+<h3>Keterangan Gas</h3>
 <p>
-0–300   : Bersih<br>
-300–500 : Asap ringan<br>
-500–700 : LPG kemungkinan<br>
->700    : Bahaya
+0–100 Bersih<br>
+100–300 Normal<br>
+300–600 Terdeteksi Gas<br>
+>600 Bahaya
 </p>
+
+<!-- 🔥 3 GRAFIK TERPISAH -->
+<div class="chart-box">
+  <h3>Grafik Suhu</h3>
+  <canvas id="chartSuhu"></canvas>
 </div>
 
-<h3>📊 Data Rata-rata (10)</h3>
+<div class="chart-box">
+  <h3>Grafik Humidity</h3>
+  <canvas id="chartHum"></canvas>
+</div>
 
-<table>
-<tr><th>Waktu</th><th>Suhu</th><th>Hum</th><th>Gas</th></tr>
-<tbody id="data"></tbody>
-</table>
-
-<br>
-<canvas id="chart"></canvas>
+<div class="chart-box">
+  <h3>Grafik Gas</h3>
+  <canvas id="chartGas"></canvas>
+</div>
 
 <script>
 const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
 
-let chart;
+let chartSuhu, chartHum, chartGas;
 
-// 🔥 RATA-RATA 10 DATA
-function avg(data,n=10){
- let out=[];
- for(let i=0;i<data.length;i+=n){
-  let c=data.slice(i,i+n);
-
-  let s=0,h=0,g=0;
-  c.forEach(d=>{
-    s+=Number(d.suhu);
-    h+=Number(d.hum);
-    g+=Number(d.gas);
-  });
-
-  out.push({
-    waktu:c[c.length-1].waktu,
-    suhu:s/c.length,
-    hum:h/c.length,
-    gas:g/c.length
-  });
- }
- return out;
-}
-
-function load(){
- fetch(url)
- .then(r=>r.json())
- .then(raw=>{
-
-  if(!raw || raw.length==0) return;
-
-  let last = raw[raw.length-1];
-
-  // 🔥 REALTIME CARD
-  document.getElementById("suhu").innerText = last.suhu+" °C";
-  document.getElementById("hum").innerText = last.hum+" %";
-  document.getElementById("gas").innerText = last.gas+" level";
-
-  // 🔥 WARNA GAS
-  let gasCard = document.getElementById("gasCard");
-  if(last.gas > 700){
-    gasCard.className="card danger";
-  } else {
-    gasCard.className="card safe";
-  }
-
-  let data = avg(raw,10);
-
-  let table = document.getElementById("data");
-  table.innerHTML="";
-
-  let suhuArr=[], humArr=[], gasArr=[], waktuArr=[];
-
-  data.slice(-20).forEach(d=>{
-    table.innerHTML+=`
-    <tr>
-    <td>${d.waktu}</td>
-    <td>${d.suhu.toFixed(2)}</td>
-    <td>${d.hum.toFixed(2)}</td>
-    <td>${d.gas.toFixed(0)}</td>
-    </tr>`;
-
-    suhuArr.push(d.suhu);
-    humArr.push(d.hum);
-    gasArr.push(d.gas);
-    waktuArr.push(d.waktu);
-  });
-
-  if(chart) chart.destroy();
-
-  chart = new Chart(document.getElementById("chart"),{
+function createChart(id,label,data,labels){
+  return new Chart(document.getElementById(id),{
     type:"line",
     data:{
-      labels:waktuArr,
-      datasets:[
-        {label:"Suhu (°C)", data:suhuArr},
-        {label:"Humidity (%)", data:humArr},
-        {label:"Gas Level", data:gasArr}
-      ]
+      labels:labels,
+      datasets:[{
+        label:label,
+        data:data,
+        borderWidth:2
+      }]
     },
     options:{
       responsive:true,
-      interaction:{mode:'index',intersect:false},
+      maintainAspectRatio:false,
       plugins:{
         zoom:{
           zoom:{
@@ -197,11 +130,43 @@ function load(){
       }
     }
   });
+}
+
+function load(){
+ fetch(url)
+ .then(r=>r.json())
+ .then(data=>{
+
+  let last = data[data.length-1];
+
+  document.getElementById("suhu").innerText = last.suhu+" °C";
+  document.getElementById("hum").innerText = last.hum+" %";
+  document.getElementById("gas").innerText = last.gas+" ("+last.status+")";
+
+  let gasCard = document.getElementById("gasCard");
+  if(last.gas > 600){ gasCard.className="card danger"; }
+  else{ gasCard.className="card safe"; }
+
+  let suhu=[], hum=[], gas=[], waktu=[];
+
+  data.slice(-30).forEach(d=>{
+    suhu.push(Number(d.suhu));
+    hum.push(Number(d.hum));
+    gas.push(Number(d.gas));
+    waktu.push(d.waktu);
+  });
+
+  if(chartSuhu) chartSuhu.destroy();
+  if(chartHum) chartHum.destroy();
+  if(chartGas) chartGas.destroy();
+
+  chartSuhu = createChart("chartSuhu","Suhu (°C)",suhu,waktu);
+  chartHum = createChart("chartHum","Humidity (%)",hum,waktu);
+  chartGas = createChart("chartGas","Gas Level",gas,waktu);
 
  });
 }
 
-// 🔥 AUTO REFRESH
 load();
 setInterval(load,3000);
 </script>
