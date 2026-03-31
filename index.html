@@ -1,25 +1,72 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Dashboard IoT PRO</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard IoT PRO</title>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
 
-  <style>
-    body { background:#0f172a; color:white; text-align:center; font-family:Arial; }
-    .container { display:flex; justify-content:center; gap:20px; margin:20px; flex-wrap:wrap; }
-    .card { background:#1e293b; padding:20px; border-radius:15px; width:150px; }
-    .danger { background:red !important; }
-    .safe { background:green !important; }
-    table { margin:auto; border-collapse:collapse; }
-    th,td { border:1px solid white; padding:8px; }
-  </style>
+<style>
+body {
+  margin:0;
+  font-family:Arial;
+  background:#0f172a;
+  color:white;
+  text-align:center;
+}
+
+/* 🔥 FLEX RESPONSIVE */
+.container {
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:15px;
+  padding:10px;
+}
+
+.card {
+  background:#1e293b;
+  padding:15px;
+  border-radius:15px;
+  width:150px;
+  transition:0.3s;
+}
+
+.card h3 { margin:5px; }
+.card div { font-size:20px; }
+
+.danger { background:#dc2626 !important; }
+.safe { background:#16a34a !important; }
+
+/* 📊 TABLE */
+table {
+  width:95%;
+  margin:auto;
+  border-collapse:collapse;
+  font-size:14px;
+}
+
+th,td {
+  border:1px solid white;
+  padding:6px;
+}
+
+/* 📱 MOBILE MODE */
+@media(max-width:600px){
+  .card {
+    width:100%;
+  }
+  table {
+    font-size:12px;
+  }
+}
+</style>
 </head>
 
 <body>
 
-<h1>🔥 Dashboard IoT</h1>
+<h2>🔥 Dashboard IoT</h2>
 
 <div class="container">
   <div class="card"><h3>Suhu</h3><div id="suhu"></div></div>
@@ -27,13 +74,25 @@
   <div class="card" id="gasCard"><h3>Gas</h3><div id="gas"></div></div>
 </div>
 
-<h2>📊 Data Rata-rata (10)</h2>
+<!-- 🔥 KETERANGAN GAS -->
+<div style="margin:15px; text-align:left; max-width:500px; margin:auto;">
+<h3>Keterangan Gas:</h3>
+<p>
+0–300   : Bersih<br>
+300–500 : Asap ringan<br>
+500–700 : LPG kemungkinan<br>
+>700    : Bahaya
+</p>
+</div>
+
+<h3>📊 Data Rata-rata (10)</h3>
 
 <table>
 <tr><th>Waktu</th><th>Suhu</th><th>Hum</th><th>Gas</th></tr>
 <tbody id="data"></tbody>
 </table>
 
+<br>
 <canvas id="chart"></canvas>
 
 <script>
@@ -41,53 +100,71 @@ const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4
 
 let chart;
 
+// 🔥 RATA-RATA 10 DATA
 function avg(data,n=10){
  let out=[];
  for(let i=0;i<data.length;i+=n){
   let c=data.slice(i,i+n);
+
   let s=0,h=0,g=0;
   c.forEach(d=>{
-    s+=+d.suhu; h+=+d.hum; g+=+d.gas;
+    s+=Number(d.suhu);
+    h+=Number(d.hum);
+    g+=Number(d.gas);
   });
+
   out.push({
     waktu:c[c.length-1].waktu,
-    suhu:(s/c.length).toFixed(2),
-    hum:(h/c.length).toFixed(2),
-    gas:(g/c.length).toFixed(0)
+    suhu:s/c.length,
+    hum:h/c.length,
+    gas:g/c.length
   });
  }
  return out;
 }
 
 function load(){
- fetch(url).then(r=>r.json()).then(raw=>{
+ fetch(url)
+ .then(r=>r.json())
+ .then(raw=>{
+
+  if(!raw || raw.length==0) return;
 
   let last = raw[raw.length-1];
 
+  // 🔥 REALTIME CARD
   document.getElementById("suhu").innerText = last.suhu+" °C";
   document.getElementById("hum").innerText = last.hum+" %";
-  document.getElementById("gas").innerText = last.gas+" ppm";
+  document.getElementById("gas").innerText = last.gas+" level";
 
+  // 🔥 WARNA GAS
   let gasCard = document.getElementById("gasCard");
-  if(last.gas > 600){ gasCard.className="card danger"; }
-  else { gasCard.className="card safe"; }
+  if(last.gas > 700){
+    gasCard.className="card danger";
+  } else {
+    gasCard.className="card safe";
+  }
 
   let data = avg(raw,10);
 
   let table = document.getElementById("data");
   table.innerHTML="";
 
-  let s=[], w=[];
+  let suhuArr=[], humArr=[], gasArr=[], waktuArr=[];
 
   data.slice(-20).forEach(d=>{
-    table.innerHTML+=`<tr>
+    table.innerHTML+=`
+    <tr>
     <td>${d.waktu}</td>
-    <td>${d.suhu}</td>
-    <td>${d.hum}</td>
-    <td>${d.gas}</td>
+    <td>${d.suhu.toFixed(2)}</td>
+    <td>${d.hum.toFixed(2)}</td>
+    <td>${d.gas.toFixed(0)}</td>
     </tr>`;
-    s.push(d.suhu);
-    w.push(d.waktu);
+
+    suhuArr.push(d.suhu);
+    humArr.push(d.hum);
+    gasArr.push(d.gas);
+    waktuArr.push(d.waktu);
   });
 
   if(chart) chart.destroy();
@@ -95,14 +172,27 @@ function load(){
   chart = new Chart(document.getElementById("chart"),{
     type:"line",
     data:{
-      labels:w,
-      datasets:[{label:"Suhu Avg",data:s}]
+      labels:waktuArr,
+      datasets:[
+        {label:"Suhu (°C)", data:suhuArr},
+        {label:"Humidity (%)", data:humArr},
+        {label:"Gas Level", data:gasArr}
+      ]
     },
     options:{
+      responsive:true,
+      interaction:{mode:'index',intersect:false},
       plugins:{
         zoom:{
-          zoom:{wheel:{enabled:true}, pinch:{enabled:true}, mode:'x'},
-          pan:{enabled:true, mode:'x'}
+          zoom:{
+            wheel:{enabled:true},
+            pinch:{enabled:true},
+            mode:'x'
+          },
+          pan:{
+            enabled:true,
+            mode:'x'
+          }
         }
       }
     }
@@ -111,6 +201,7 @@ function load(){
  });
 }
 
+// 🔥 AUTO REFRESH
 load();
 setInterval(load,3000);
 </script>
