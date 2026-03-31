@@ -1,95 +1,161 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Romantic Love</title>
+<title>Dashboard IoT</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
 <style>
-  body {
-    margin:0;
-    font-family: 'Segoe UI', sans-serif;
-    height:100vh;
-    overflow:hidden;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    background: linear-gradient(135deg, #ff9a9e, #fad0c4);
-    color:white;
-    text-align:center;
-  }
-
-  h1, h2 {
-    margin:0.2em;
-    text-shadow: 2px 2px 8px rgba(0,0,0,0.3);
-  }
-
-  h1 {
-    font-size:4em;
-    animation: pulse 2s infinite;
-  }
-
-  h2 {
-    font-size:2.5em;
-    animation: float 3s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    0% { transform: scale(1); opacity:1; }
-    50% { transform: scale(1.1); opacity:0.9; }
-    100% { transform: scale(1); opacity:1; }
-  }
-
-  @keyframes float {
-    0% { transform: translateY(0px); }
-    50% { transform: translateY(-10px); }
-    100% { transform: translateY(0px); }
-  }
-
-  .heart {
-    position:absolute;
-    font-size:24px;
-    color:red;
-    animation: fall linear;
-  }
-
-  @keyframes fall {
-    0% { transform: translateY(-50px) rotate(0deg); opacity:1; }
-    100% { transform: translateY(100vh) rotate(360deg); opacity:0; }
-  }
-
+body {
+  margin:0;
+  font-family:Arial, sans-serif;
+  background:#0f172a;
+  color:white;
+  text-align:center;
+}
+.container {
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:10px;
+  margin-top:10px;
+}
+.card {
+  background:#1e293b;
+  padding:10px;
+  border-radius:10px;
+  width:120px;
+}
+.chart-box {
+  width:95%;
+  max-width:800px;
+  height:300px;
+  margin:20px auto;
+  background:#1e293b;
+  border-radius:10px;
+}
+canvas {
+  width:100% !important;
+  height:100% !important;
+}
 </style>
 </head>
 <body>
 
-<div>
-  <h1>I <span class="pulse-heart">❤</span> You</h1>
-  <h2>I Miss You <span class="pulse-heart">❤</span></h2>
+<h2>Dashboard IoT</h2>
+
+<div class="container">
+  <div class="card"><h4>Suhu</h4><div id="suhu">-</div></div>
+  <div class="card"><h4>Hum</h4><div id="hum">-</div></div>
+  <div class="card"><h4>Gas</h4><div id="gas">-</div></div>
 </div>
 
+<div class="chart-box"><canvas id="chartSuhu"></canvas></div>
+<div class="chart-box"><canvas id="chartHum"></canvas></div>
+<div class="chart-box"><canvas id="chartGas"></canvas></div>
+
 <script>
-  // Fungsi membuat hati jatuh
-  function createHeart() {
-    const heart = document.createElement('div');
-    heart.classList.add('heart');
-    heart.style.left = Math.random() * window.innerWidth + 'px';
-    heart.style.fontSize = (Math.random() * 20 + 20) + 'px';
-    heart.style.animationDuration = (Math.random() * 3 + 2) + 's';
-    document.body.appendChild(heart);
-    heart.innerText = '❤';
-    setTimeout(() => {
-      heart.remove();
-    }, 5000);
-  }
+const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
 
-  // Hati jatuh tiap 300ms
-  setInterval(createHeart, 300);
+let chart1, chart2, chart3;
 
-  // Teks hati pulse
-  const pulseHearts = document.querySelectorAll('.pulse-heart');
-  setInterval(() => {
-    pulseHearts.forEach(h => {
-      h.style.opacity = Math.random() * 0.5 + 0.5;
-    });
-  }, 500);
+// Fungsi menentukan stepSize otomatis untuk Gas
+function getStepSize(value){
+  return value <= 100 ? 10 : 100;
+}
+
+// Fungsi membuat chart
+function buatChart(id, data, label, min, max){
+  const step = getStepSize(max);
+
+  return new Chart(document.getElementById(id), {
+    type:'line',
+    data:{
+      labels:data.map(d=>d.waktu),
+      datasets:[{
+        label: label,
+        data:data.map(d=>Number(d.value)),
+        borderWidth:2,
+        borderColor: label==="Gas"?"orange":label==="Humidity"?"cyan":"lime",
+        backgroundColor:'transparent',
+        tension:0.3
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{
+        mode:'nearest',
+        axis:'x',
+        intersect:false
+      },
+      scales:{
+        x:{
+          display:true,
+          title:{ display:true, text:'Waktu' }
+        },
+        y:{
+          min:min,
+          max:max,
+          ticks:{ stepSize: step }
+        }
+      },
+      plugins:{
+        zoom:{
+          pan:{
+            enabled:true,
+            mode:'x',
+            modifierKey:'ctrl'
+          },
+          zoom:{
+            wheel:{ enabled:true },
+            pinch:{ enabled:true },
+            mode:'x'
+          }
+        }
+      }
+    }
+  });
+}
+
+// Load data dan update chart
+function loadData(){
+  fetch(url)
+    .then(res=>res.json())
+    .then(data=>{
+      if(!data || data.length===0) return;
+
+      const last = data[data.length-1];
+      document.getElementById("suhu").innerText = last.suhu;
+      document.getElementById("hum").innerText = last.hum;
+      document.getElementById("gas").innerText = last.gas;
+
+      const suhuData = data.slice(-20).map(d=>({waktu:d.waktu, value:d.suhu}));
+      const humData  = data.slice(-20).map(d=>({waktu:d.waktu, value:d.hum}));
+      const gasData  = data.slice(-20).map(d=>({waktu:d.waktu, value:d.gas}));
+
+      if(chart1) chart1.destroy();
+      if(chart2) chart2.destroy();
+      if(chart3) chart3.destroy();
+
+      const suhuMax = Math.max(...suhuData.map(d=>Number(d.value))) + 5;
+      const humMax  = Math.max(...humData.map(d=>Number(d.value))) + 5;
+      let gasMax    = Math.max(...gasData.map(d=>Number(d.value)));
+      if(gasMax < 100) gasMax = 100;
+      if(gasMax > 10000) gasMax = 10000;
+
+      chart1 = buatChart("chartSuhu", suhuData, "Suhu", 15, suhuMax);
+      chart2 = buatChart("chartHum", humData, "Humidity", 50, humMax);
+      chart3 = buatChart("chartGas", gasData, "Gas", 10, gasMax);
+
+    })
+    .catch(err=>console.log(err));
+}
+
+window.onload = function(){
+  loadData();
+  setInterval(loadData,3000);
+}
 </script>
 
 </body>
