@@ -1,11 +1,14 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 
 <script>
 const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
 
 let chartSuhu, chartHum, chartGas;
+
+// 🔥 WAJIB REGISTER (INI YANG SERING LUPA)
+Chart.register(ChartDataLabels);
 
 function createChart(id,label,data,labels,yMin,yMax,yStep){
   return new Chart(document.getElementById(id),{
@@ -37,7 +40,7 @@ function createChart(id,label,data,labels,yMin,yMax,yStep){
           color:'white',
           anchor:'end',
           align:'top',
-          formatter:(value)=> value
+          formatter:(v)=>v
         },
         zoom:{
           pan:{
@@ -50,15 +53,12 @@ function createChart(id,label,data,labels,yMin,yMax,yStep){
               enabled:true,
               modifierKey:'ctrl'
             },
-            pinch:{
-              enabled:true
-            },
+            pinch:{ enabled:true },
             mode:'x'
           }
         }
       }
-    },
-    plugins:[ChartDataLabels]
+    }
   });
 }
 
@@ -67,7 +67,7 @@ function load(){
  .then(r=>r.json())
  .then(data=>{
 
-  if(data.length === 0) return;
+  if(!data || data.length === 0) return;
 
   let last = data[data.length-1];
 
@@ -76,8 +76,7 @@ function load(){
   document.getElementById("gas").innerText = last.gas+" ("+last.status+")";
 
   let gasCard = document.getElementById("gasCard");
-  if(last.gas > 600){ gasCard.className="card danger"; }
-  else{ gasCard.className="card safe"; }
+  gasCard.className = (last.gas > 600) ? "card danger" : "card safe";
 
   let suhu=[], hum=[], gas=[], waktu=[];
 
@@ -92,36 +91,13 @@ function load(){
   if(chartHum) chartHum.destroy();
   if(chartGas) chartGas.destroy();
 
-  // 🔥 SUHU (15–50 step 5)
-  chartSuhu = createChart(
-    "chartSuhu",
-    "Suhu (°C)",
-    suhu,
-    waktu,
-    15,50,5
-  );
-
-  // 🔥 HUM (50–90 step 10)
-  chartHum = createChart(
-    "chartHum",
-    "Humidity (%)",
-    hum,
-    waktu,
-    50,90,10
-  );
-
-  // 🔥 GAS (50–800 step 100)
-  chartGas = createChart(
-    "chartGas",
-    "Gas Level",
-    gas,
-    waktu,
-    50,800,100
-  );
+  chartSuhu = createChart("chartSuhu","Suhu",suhu,waktu,15,50,5);
+  chartHum  = createChart("chartHum","Humidity",hum,waktu,50,90,10);
+  chartGas  = createChart("chartGas","Gas",gas,waktu,50,800,100);
 
  })
  .catch(err=>{
-   console.log("Error:", err);
+   console.log("ERROR:", err);
  });
 }
 
