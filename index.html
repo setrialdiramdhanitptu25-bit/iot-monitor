@@ -3,10 +3,8 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard IoT</title>
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
-
 <style>
 body {
   margin:0;
@@ -15,21 +13,18 @@ body {
   color:white;
   text-align:center;
 }
-
 .container {
   display:flex;
   flex-wrap:wrap;
   justify-content:center;
   gap:10px;
 }
-
 .card {
   background:#1e293b;
   padding:10px;
   border-radius:10px;
   width:120px;
 }
-
 .chart-box {
   width:95%;
   max-width:800px;
@@ -38,14 +33,12 @@ body {
   background:#1e293b;
   border-radius:10px;
 }
-
 canvas {
   width:100% !important;
   height:100% !important;
 }
 </style>
 </head>
-
 <body>
 
 <h2>Dashboard IoT</h2>
@@ -65,58 +58,91 @@ const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4
 
 let chart1, chart2, chart3;
 
-function buatChart(id, data, label, min, max, step){
-  return new Chart(document.getElementById(id),{
-    type:'line',
-    data:{
-      labels:data.map(d=>d.waktu),
-      datasets:[{
-        label:label,
-        data:data.map(d=>Number(d.value)),
-        borderWidth:2
+// Fungsi untuk menentukan stepSize otomatis
+function getStepSize(value) {
+  if(value <= 100) return 10;
+  return 100;
+}
+
+// Fungsi membuat chart
+function buatChart(id, data, label, min, max){
+  let step = getStepSize(max);
+
+  return new Chart(document.getElementById(id), {
+    type: 'line',
+    data: {
+      labels: data.map(d => d.waktu),
+      datasets: [{
+        label: label,
+        data: data.map(d => Number(d.value)),
+        borderWidth: 2,
+        borderColor: label === "Gas" ? "orange" : label === "Humidity" ? "cyan" : "lime",
+        backgroundColor: 'transparent',
+        tension:0.3
       }]
     },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      scales:{
-        y:{
-          min:min,
-          max:max,
-          ticks:{ stepSize:step }
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          min: min,
+          max: max,
+          ticks: {
+            stepSize: step
+          }
+        }
+      },
+      plugins: {
+        zoom: {
+          zoom: {
+            wheel: {
+              enabled: true
+            },
+            pinch: {
+              enabled: true
+            },
+            mode: 'xy',
+          }
         }
       }
     }
   });
 }
 
+// Load data dan update chart
 function loadData(){
- fetch(url)
- .then(res=>res.json())
- .then(data=>{
+  fetch(url)
+  .then(res => res.json())
+  .then(data => {
+    if(!data || data.length==0) return;
 
-  if(!data || data.length==0) return;
+    let last = data[data.length-1];
+    document.getElementById("suhu").innerText = last.suhu;
+    document.getElementById("hum").innerText = last.hum;
+    document.getElementById("gas").innerText = last.gas;
 
-  let last = data[data.length-1];
+    let suhuData = data.slice(-20).map(d => ({waktu:d.waktu, value:d.suhu}));
+    let humData  = data.slice(-20).map(d => ({waktu:d.waktu, value:d.hum}));
+    let gasData  = data.slice(-20).map(d => ({waktu:d.waktu, value:d.gas}));
 
-  document.getElementById("suhu").innerText = last.suhu;
-  document.getElementById("hum").innerText = last.hum;
-  document.getElementById("gas").innerText = last.gas;
+    if(chart1) chart1.destroy();
+    if(chart2) chart2.destroy();
+    if(chart3) chart3.destroy();
 
-  let suhuData = data.slice(-20).map(d=>({waktu:d.waktu, value:d.suhu}));
-  let humData  = data.slice(-20).map(d=>({waktu:d.waktu, value:d.hum}));
-  let gasData  = data.slice(-20).map(d=>({waktu:d.waktu, value:d.gas}));
+    // tentukan max Y otomatis
+    let suhuMax = Math.max(...suhuData.map(d=>Number(d.value))) + 5;
+    let humMax  = Math.max(...humData.map(d=>Number(d.value))) + 5;
+    let gasMax  = Math.max(...gasData.map(d=>Number(d.value)));
+    if(gasMax < 100) gasMax = 100; // minimal 100 agar kelipatan 10 jelas
+    if(gasMax > 10000) gasMax = 10000; // MQ2 max sensor
 
-  if(chart1) chart1.destroy();
-  if(chart2) chart2.destroy();
-  if(chart3) chart3.destroy();
+    chart1 = buatChart("chartSuhu", suhuData, "Suhu", 15, suhuMax);
+    chart2 = buatChart("chartHum", humData, "Humidity", 50, humMax);
+    chart3 = buatChart("chartGas", gasData, "Gas", 10, gasMax);
 
-  chart1 = buatChart("chartSuhu", suhuData, "Suhu", 15,50,5);
-  chart2 = buatChart("chartHum", humData, "Humidity", 50,90,10);
-  chart3 = buatChart("chartGas", gasData, "Gas", 50,800,100);
-
- })
- .catch(err=>console.log(err));
+  })
+  .catch(err => console.log(err));
 }
 
 window.onload = function(){
