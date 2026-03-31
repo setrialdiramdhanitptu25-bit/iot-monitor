@@ -2,73 +2,24 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard IoT</title>
+<title>Dashboard IoT Live Table</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
 <style>
-body {
-  margin:0;
-  font-family:Arial, sans-serif;
-  background:#0f172a;
-  color:white;
-  text-align:center;
-}
-.container {
-  display:flex;
-  flex-wrap:wrap;
-  justify-content:center;
-  gap:10px;
-  margin-top:10px;
-}
-.card {
-  background:#1e293b;
-  padding:10px;
-  border-radius:10px;
-  width:120px;
-}
-.chart-box {
-  width:95%;
-  max-width:800px;
-  height:300px;
-  margin:20px auto;
-  background:#1e293b;
-  border-radius:10px;
-}
-canvas {
-  width:100% !important;
-  height:100% !important;
-}
-.table-container {
-  width:95%;
-  max-width:800px;
-  margin:20px auto;
-  background:#1e293b;
-  border-radius:10px;
-  overflow-x:auto;
-  overflow-y:auto;
-  max-height:400px; /* scroll vertical 400px */
-  padding:10px;
-}
-table {
-  width:100%;
-  border-collapse:collapse;
-}
-th, td {
-  border:1px solid #ccc;
-  padding:5px 8px;
-  text-align:center;
-  color:white;
-}
-th {
-  background:#334155;
-  position: sticky;
-  top:0;
-}
+body { margin:0; font-family:Arial,sans-serif; background:#0f172a; color:white; text-align:center; }
+.container { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:10px; }
+.card { background:#1e293b; padding:10px; border-radius:10px; width:120px; }
+.chart-box { width:95%; max-width:800px; height:300px; margin:20px auto; background:#1e293b; border-radius:10px; }
+canvas { width:100% !important; height:100% !important; }
+.table-container { width:95%; max-width:800px; margin:20px auto; background:#1e293b; border-radius:10px; overflow-x:auto; overflow-y:auto; max-height:500px; padding:10px; }
+table { width:100%; border-collapse:collapse; }
+th, td { border:1px solid #ccc; padding:5px 8px; text-align:center; color:white; }
+th { background:#334155; position: sticky; top:0; }
 </style>
 </head>
 <body>
 
-<h2>Dashboard IoT</h2>
+<h2>Dashboard IoT Live</h2>
 
 <div class="container">
   <div class="card"><h4>Suhu</h4><div id="suhu">-</div></div>
@@ -80,17 +31,11 @@ th {
 <div class="chart-box"><canvas id="chartHum"></canvas></div>
 <div class="chart-box"><canvas id="chartGas"></canvas></div>
 
-<h3>Data Terbaru</h3>
+<h3>Data Lengkap</h3>
 <div class="table-container">
   <table id="dataTable">
     <thead>
-      <tr>
-        <th>No</th>
-        <th>Waktu</th>
-        <th>Suhu</th>
-        <th>Hum</th>
-        <th>Gas</th>
-      </tr>
+      <tr><th>No</th><th>Waktu</th><th>Suhu</th><th>Hum</th><th>Gas</th></tr>
     </thead>
     <tbody></tbody>
   </table>
@@ -100,14 +45,12 @@ th {
 const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
 
 let chart1, chart2, chart3;
+let lastDataLength = 0;
 
-function getStepSize(value){
-  return value <= 100 ? 10 : 100;
-}
+function getStepSize(value){ return value <= 100 ? 10 : 100; }
 
 function buatChart(id, data, label, min, max){
   const step = getStepSize(max);
-
   return new Chart(document.getElementById(id), {
     type:'line',
     data:{
@@ -124,96 +67,70 @@ function buatChart(id, data, label, min, max){
     options:{
       responsive:true,
       maintainAspectRatio:false,
-      interaction:{
-        mode:'nearest',
-        axis:'x',
-        intersect:false
-      },
+      interaction:{mode:'nearest', axis:'x', intersect:false},
       scales:{
-        x:{
-          display:true,
-          title:{ display:true, text:'Waktu' }
-        },
-        y:{
-          min:min,
-          max:max,
-          ticks:{ stepSize: step }
-        }
+        x:{ display:true, title:{ display:true, text:'Waktu' } },
+        y:{ min:min, max:max, ticks:{ stepSize: step } }
       },
-      plugins:{
-        zoom:{
-          pan:{
-            enabled:true,
-            mode:'x'
-          },
-          zoom:{
-            wheel:{ enabled:true },
-            pinch:{ enabled:true },
-            mode:'x'
-          }
-        }
-      }
+      plugins:{ zoom:{ pan:{ enabled:true, mode:'x' }, zoom:{ wheel:{ enabled:true }, pinch:{ enabled:true }, mode:'x' } } }
     }
   });
 }
 
-// Fungsi update tabel
+function updateChartAndCards(data){
+  const last = data[data.length-1];
+  document.getElementById("suhu").innerText = last.suhu;
+  document.getElementById("hum").innerText = last.hum;
+  document.getElementById("gas").innerText = last.gas;
+
+  const suhuData = data.slice(-20).map(d=>({waktu:d.waktu,value:d.suhu}));
+  const humData  = data.slice(-20).map(d=>({waktu:d.waktu,value:d.hum}));
+  const gasData  = data.slice(-20).map(d=>({waktu:d.waktu,value:d.gas}));
+
+  if(chart1) chart1.destroy();
+  if(chart2) chart2.destroy();
+  if(chart3) chart3.destroy();
+
+  const suhuMax = Math.max(...suhuData.map(d=>Number(d.value))) +5;
+  const humMax = Math.max(...humData.map(d=>Number(d.value))) +5;
+  let gasMax = Math.max(...gasData.map(d=>Number(d.value)));
+  if(gasMax <100) gasMax=100;
+  if(gasMax>10000) gasMax=10000;
+
+  chart1 = buatChart("chartSuhu", suhuData, "Suhu",15,suhuMax);
+  chart2 = buatChart("chartHum", humData, "Humidity",50,humMax);
+  chart3 = buatChart("chartGas", gasData, "Gas",10,gasMax);
+}
+
 function updateTable(data){
   const tbody = document.querySelector("#dataTable tbody");
-  tbody.innerHTML = ""; // bersihkan tabel
-  const last50 = data.slice(-50); // ambil 50 data terakhir
-  last50.forEach((d,i)=>{
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${i+1}</td>
-      <td>${d.waktu}</td>
-      <td>${d.suhu}</td>
-      <td>${d.hum}</td>
-      <td>${d.gas}</td>
-    `;
-    tbody.appendChild(tr);
-  });
+
+  // Hanya rebuild jika jumlah data berubah
+  if(data.length !== lastDataLength){
+    tbody.innerHTML = "";
+    data.forEach((d,i)=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${i+1}</td><td>${d.waktu}</td><td>${d.suhu}</td><td>${d.hum}</td><td>${d.gas}</td>`;
+      tbody.appendChild(tr);
+    });
+    lastDataLength = data.length;
+  }
 }
 
 function loadData(){
   fetch(url)
-    .then(res=>res.json())
-    .then(data=>{
-      if(!data || data.length===0) return;
-
-      const last = data[data.length-1];
-      document.getElementById("suhu").innerText = last.suhu;
-      document.getElementById("hum").innerText = last.hum;
-      document.getElementById("gas").innerText = last.gas;
-
-      const suhuData = data.slice(-20).map(d=>({waktu:d.waktu, value:d.suhu}));
-      const humData  = data.slice(-20).map(d=>({waktu:d.waktu, value:d.hum}));
-      const gasData  = data.slice(-20).map(d=>({waktu:d.waktu, value:d.gas}));
-
-      if(chart1) chart1.destroy();
-      if(chart2) chart2.destroy();
-      if(chart3) chart3.destroy();
-
-      const suhuMax = Math.max(...suhuData.map(d=>Number(d.value))) + 5;
-      const humMax  = Math.max(...humData.map(d=>Number(d.value))) + 5;
-      let gasMax    = Math.max(...gasData.map(d=>Number(d.value)));
-      if(gasMax < 100) gasMax = 100;
-      if(gasMax > 10000) gasMax = 10000;
-
-      chart1 = buatChart("chartSuhu", suhuData, "Suhu", 15, suhuMax);
-      chart2 = buatChart("chartHum", humData, "Humidity", 50, humMax);
-      chart3 = buatChart("chartGas", gasData, "Gas", 10, gasMax);
-
-      // update tabel
-      updateTable(data);
-
-    })
-    .catch(err=>console.log(err));
+  .then(res=>res.json())
+  .then(data=>{
+    if(!data || data.length===0) return;
+    updateChartAndCards(data);
+    updateTable(data); // tabel selalu mengikuti jumlah baris di spreadsheet
+  })
+  .catch(err=>console.log(err));
 }
 
 window.onload = function(){
   loadData();
-  setInterval(loadData,3000);
+  setInterval(loadData,3000); // update otomatis tiap 3 detik
 }
 </script>
 
