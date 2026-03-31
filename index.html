@@ -1,104 +1,13 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard IoT</title>
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
-
-<style>
-body {
-  margin:0;
-  font-family:Arial;
-  background:#0f172a;
-  color:white;
-  text-align:center;
-}
-
-/* CARD */
-.container {
-  display:flex;
-  flex-wrap:wrap;
-  justify-content:center;
-  gap:15px;
-}
-
-.card {
-  background:#1e293b;
-  padding:15px;
-  border-radius:15px;
-  width:150px;
-}
-
-.danger { background:red !important; }
-.safe { background:green !important; }
-
-/* CHART */
-.chart-box {
-  width:95%;
-  max-width:900px;
-  margin:20px auto;
-  background:#1e293b;
-  padding:15px;
-  border-radius:15px;
-
-  height:300px;        /* 🔥 FIX */
-  overflow:hidden;
-}
-
-canvas {
-  width:100% !important;
-  height:100% !important;
-}
-
-/* MOBILE */
-@media(max-width:600px){
-  .card { width:100%; }
-}
-</style>
-</head>
-
-<body>
-
-<h2>🔥 Dashboard IoT</h2>
-
-<div class="container">
-  <div class="card"><h3>Suhu</h3><div id="suhu"></div></div>
-  <div class="card"><h3>Humidity</h3><div id="hum"></div></div>
-  <div class="card" id="gasCard"><h3>Gas</h3><div id="gas"></div></div>
-</div>
-
-<h3>Keterangan Gas</h3>
-<p>
-0–100 Bersih<br>
-100–300 Normal<br>
-300–600 Terdeteksi Gas<br>
->600 Bahaya
-</p>
-
-<!-- 🔥 GRAFIK -->
-<div class="chart-box">
-  <h3>Grafik Suhu</h3>
-  <canvas id="chartSuhu"></canvas>
-</div>
-
-<div class="chart-box">
-  <h3>Grafik Humidity</h3>
-  <canvas id="chartHum"></canvas>
-</div>
-
-<div class="chart-box">
-  <h3>Grafik Gas</h3>
-  <canvas id="chartGas"></canvas>
-</div>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
 
 <script>
 const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
 
 let chartSuhu, chartHum, chartGas;
 
-function createChart(id,label,data,labels){
+function createChart(id,label,data,labels,yMin,yMax,yStep){
   return new Chart(document.getElementById(id),{
     type:"line",
     data:{
@@ -107,17 +16,29 @@ function createChart(id,label,data,labels){
         label:label,
         data:data,
         borderWidth:2,
-        tension:0.3
+        tension:0.3,
+        pointRadius:4
       }]
     },
     options:{
       responsive:true,
       maintainAspectRatio:false,
-      interaction:{
-        mode:'nearest',
-        intersect:false
+      scales:{
+        y:{
+          min:yMin,
+          max:yMax,
+          ticks:{
+            stepSize:yStep
+          }
+        }
       },
       plugins:{
+        datalabels:{
+          color:'white',
+          anchor:'end',
+          align:'top',
+          formatter:(value)=> value
+        },
         zoom:{
           pan:{
             enabled:true,
@@ -136,7 +57,8 @@ function createChart(id,label,data,labels){
           }
         }
       }
-    }
+    },
+    plugins:[ChartDataLabels]
   });
 }
 
@@ -170,9 +92,32 @@ function load(){
   if(chartHum) chartHum.destroy();
   if(chartGas) chartGas.destroy();
 
-  chartSuhu = createChart("chartSuhu","Suhu (°C)",suhu,waktu);
-  chartHum = createChart("chartHum","Humidity (%)",hum,waktu);
-  chartGas = createChart("chartGas","Gas Level",gas,waktu);
+  // 🔥 SUHU (15–50 step 5)
+  chartSuhu = createChart(
+    "chartSuhu",
+    "Suhu (°C)",
+    suhu,
+    waktu,
+    15,50,5
+  );
+
+  // 🔥 HUM (50–90 step 10)
+  chartHum = createChart(
+    "chartHum",
+    "Humidity (%)",
+    hum,
+    waktu,
+    50,90,10
+  );
+
+  // 🔥 GAS (50–800 step 100)
+  chartGas = createChart(
+    "chartGas",
+    "Gas Level",
+    gas,
+    waktu,
+    50,800,100
+  );
 
  })
  .catch(err=>{
@@ -183,6 +128,3 @@ function load(){
 load();
 setInterval(load,3000);
 </script>
-
-</body>
-</html>
