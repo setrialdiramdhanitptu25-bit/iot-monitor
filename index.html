@@ -59,12 +59,10 @@ const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4
 
 let chart1, chart2, chart3;
 
-// Fungsi menentukan stepSize otomatis untuk Gas
 function getStepSize(value){
   return value <= 100 ? 10 : 100;
 }
 
-// Fungsi membuat chart
 function buatChart(id, data, label, min, max){
   const step = getStepSize(max);
 
@@ -103,14 +101,13 @@ function buatChart(id, data, label, min, max){
       plugins:{
         zoom:{
           pan:{
-            enabled:true,
-            mode:'x',
-            modifierKey:'ctrl'
+            enabled:true,     // pan aktif
+            mode:'x',         // pan horizontal
           },
           zoom:{
             wheel:{ enabled:true },
             pinch:{ enabled:true },
-            mode:'x'
+            mode:'x',
           }
         }
       }
@@ -118,7 +115,6 @@ function buatChart(id, data, label, min, max){
   });
 }
 
-// Load data dan update chart
 function loadData(){
   fetch(url)
     .then(res=>res.json())
