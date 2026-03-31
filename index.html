@@ -1,11 +1,70 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>IoT Monitor</title>
+  <title>Monitoring IoT</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
-<h1>Website IoT Berhasil 🎉</h1>
+<h2>DATA SENSOR ESP32</h2>
+
+<table border="1">
+<tr>
+<th>Waktu</th>
+<th>Suhu</th>
+<th>Hum</th>
+<th>Gas</th>
+</tr>
+<tbody id="data"></tbody>
+</table>
+
+<br>
+<canvas id="chart"></canvas>
+
+<script>
+const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
+
+function loadData(){
+ fetch(url)
+ .then(res=>res.json())
+ .then(data=>{
+
+  let table = document.getElementById("data");
+  table.innerHTML="";
+
+  let suhu = [];
+  let waktu = [];
+
+  data.slice(-20).forEach(d=>{
+    table.innerHTML+=`
+    <tr>
+    <td>${d.waktu}</td>
+    <td>${d.suhu}</td>
+    <td>${d.hum}</td>
+    <td>${d.gas}</td>
+    </tr>`;
+
+    suhu.push(d.suhu);
+    waktu.push(d.waktu);
+  });
+
+  new Chart(document.getElementById("chart"), {
+    type: "line",
+    data: {
+      labels: waktu,
+      datasets: [{
+        label: "Suhu",
+        data: suhu
+      }]
+    }
+  });
+
+ });
+}
+
+loadData();
+setInterval(loadData,5000);
+</script>
 
 </body>
 </html>
