@@ -1,69 +1,118 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Monitoring IoT</title>
+  <title>Dashboard IoT PRO</title>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
+
+  <style>
+    body { background:#0f172a; color:white; text-align:center; font-family:Arial; }
+    .container { display:flex; justify-content:center; gap:20px; margin:20px; flex-wrap:wrap; }
+    .card { background:#1e293b; padding:20px; border-radius:15px; width:150px; }
+    .danger { background:red !important; }
+    .safe { background:green !important; }
+    table { margin:auto; border-collapse:collapse; }
+    th,td { border:1px solid white; padding:8px; }
+  </style>
 </head>
+
 <body>
 
-<h2>DATA SENSOR ESP32</h2>
+<h1>🔥 Dashboard IoT</h1>
 
-<table border="1">
-<tr>
-<th>Waktu</th>
-<th>Suhu</th>
-<th>Hum</th>
-<th>Gas</th>
-</tr>
+<div class="container">
+  <div class="card"><h3>Suhu</h3><div id="suhu"></div></div>
+  <div class="card"><h3>Humidity</h3><div id="hum"></div></div>
+  <div class="card" id="gasCard"><h3>Gas</h3><div id="gas"></div></div>
+</div>
+
+<h2>📊 Data Rata-rata (10)</h2>
+
+<table>
+<tr><th>Waktu</th><th>Suhu</th><th>Hum</th><th>Gas</th></tr>
 <tbody id="data"></tbody>
 </table>
 
-<br>
 <canvas id="chart"></canvas>
 
 <script>
 const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
 
-function loadData(){
- fetch(url)
- .then(res=>res.json())
- .then(data=>{
+let chart;
+
+function avg(data,n=10){
+ let out=[];
+ for(let i=0;i<data.length;i+=n){
+  let c=data.slice(i,i+n);
+  let s=0,h=0,g=0;
+  c.forEach(d=>{
+    s+=+d.suhu; h+=+d.hum; g+=+d.gas;
+  });
+  out.push({
+    waktu:c[c.length-1].waktu,
+    suhu:(s/c.length).toFixed(2),
+    hum:(h/c.length).toFixed(2),
+    gas:(g/c.length).toFixed(0)
+  });
+ }
+ return out;
+}
+
+function load(){
+ fetch(url).then(r=>r.json()).then(raw=>{
+
+  let last = raw[raw.length-1];
+
+  document.getElementById("suhu").innerText = last.suhu+" °C";
+  document.getElementById("hum").innerText = last.hum+" %";
+  document.getElementById("gas").innerText = last.gas+" ppm";
+
+  let gasCard = document.getElementById("gasCard");
+  if(last.gas > 600){ gasCard.className="card danger"; }
+  else { gasCard.className="card safe"; }
+
+  let data = avg(raw,10);
 
   let table = document.getElementById("data");
   table.innerHTML="";
 
-  let suhu = [];
-  let waktu = [];
+  let s=[], w=[];
 
   data.slice(-20).forEach(d=>{
-    table.innerHTML+=`
-    <tr>
+    table.innerHTML+=`<tr>
     <td>${d.waktu}</td>
     <td>${d.suhu}</td>
     <td>${d.hum}</td>
     <td>${d.gas}</td>
     </tr>`;
-
-    suhu.push(d.suhu);
-    waktu.push(d.waktu);
+    s.push(d.suhu);
+    w.push(d.waktu);
   });
 
-  new Chart(document.getElementById("chart"), {
-    type: "line",
-    data: {
-      labels: waktu,
-      datasets: [{
-        label: "Suhu",
-        data: suhu
-      }]
+  if(chart) chart.destroy();
+
+  chart = new Chart(document.getElementById("chart"),{
+    type:"line",
+    data:{
+      labels:w,
+      datasets:[{label:"Suhu Avg",data:s}]
+    },
+    options:{
+      plugins:{
+        zoom:{
+          zoom:{wheel:{enabled:true}, pinch:{enabled:true}, mode:'x'},
+          pan:{enabled:true, mode:'x'}
+        }
+      }
     }
   });
 
  });
 }
 
-loadData();
-setInterval(loadData,5000);
+load();
+setInterval(load,3000);
 </script>
 
 </body>
