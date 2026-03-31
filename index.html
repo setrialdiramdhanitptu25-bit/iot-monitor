@@ -38,6 +38,32 @@ canvas {
   width:100% !important;
   height:100% !important;
 }
+.table-container {
+  width:95%;
+  max-width:800px;
+  margin:20px auto;
+  background:#1e293b;
+  border-radius:10px;
+  overflow-x:auto;
+  overflow-y:auto;
+  max-height:400px; /* scroll vertical 400px */
+  padding:10px;
+}
+table {
+  width:100%;
+  border-collapse:collapse;
+}
+th, td {
+  border:1px solid #ccc;
+  padding:5px 8px;
+  text-align:center;
+  color:white;
+}
+th {
+  background:#334155;
+  position: sticky;
+  top:0;
+}
 </style>
 </head>
 <body>
@@ -53,6 +79,22 @@ canvas {
 <div class="chart-box"><canvas id="chartSuhu"></canvas></div>
 <div class="chart-box"><canvas id="chartHum"></canvas></div>
 <div class="chart-box"><canvas id="chartGas"></canvas></div>
+
+<h3>Data Terbaru</h3>
+<div class="table-container">
+  <table id="dataTable">
+    <thead>
+      <tr>
+        <th>No</th>
+        <th>Waktu</th>
+        <th>Suhu</th>
+        <th>Hum</th>
+        <th>Gas</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
 
 <script>
 const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
@@ -101,17 +143,35 @@ function buatChart(id, data, label, min, max){
       plugins:{
         zoom:{
           pan:{
-            enabled:true,     // pan aktif
-            mode:'x',         // pan horizontal
+            enabled:true,
+            mode:'x'
           },
           zoom:{
             wheel:{ enabled:true },
             pinch:{ enabled:true },
-            mode:'x',
+            mode:'x'
           }
         }
       }
     }
+  });
+}
+
+// Fungsi update tabel
+function updateTable(data){
+  const tbody = document.querySelector("#dataTable tbody");
+  tbody.innerHTML = ""; // bersihkan tabel
+  const last50 = data.slice(-50); // ambil 50 data terakhir
+  last50.forEach((d,i)=>{
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td>${d.waktu}</td>
+      <td>${d.suhu}</td>
+      <td>${d.hum}</td>
+      <td>${d.gas}</td>
+    `;
+    tbody.appendChild(tr);
   });
 }
 
@@ -143,6 +203,9 @@ function loadData(){
       chart1 = buatChart("chartSuhu", suhuData, "Suhu", 15, suhuMax);
       chart2 = buatChart("chartHum", humData, "Humidity", 50, humMax);
       chart3 = buatChart("chartGas", gasData, "Gas", 10, gasMax);
+
+      // update tabel
+      updateTable(data);
 
     })
     .catch(err=>console.log(err));
