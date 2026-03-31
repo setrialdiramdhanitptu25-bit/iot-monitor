@@ -1,26 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard IoT</title>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+
+<style>
+body {
+  margin:0;
+  font-family:Arial;
+  background:#0f172a;
+  color:white;
+  text-align:center;
+}
+
+.container {
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:10px;
+}
+
+.card {
+  background:#1e293b;
+  padding:10px;
+  border-radius:10px;
+  width:120px;
+}
+
+.chart-box {
+  width:95%;
+  max-width:800px;
+  height:300px;
+  margin:20px auto;
+  background:#1e293b;
+  border-radius:10px;
+}
+
+canvas {
+  width:100% !important;
+  height:100% !important;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Dashboard IoT</h2>
+
+<div class="container">
+  <div class="card"><h4>Suhu</h4><div id="suhu">-</div></div>
+  <div class="card"><h4>Hum</h4><div id="hum">-</div></div>
+  <div class="card"><h4>Gas</h4><div id="gas">-</div></div>
+</div>
+
+<div class="chart-box"><canvas id="chartSuhu"></canvas></div>
+<div class="chart-box"><canvas id="chartHum"></canvas></div>
+<div class="chart-box"><canvas id="chartGas"></canvas></div>
 
 <script>
 const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
 
-let chartSuhu, chartHum, chartGas;
+let chart1, chart2, chart3;
 
-// 🔥 WAJIB REGISTER (INI YANG SERING LUPA)
-Chart.register(ChartDataLabels);
-
-function createChart(id,label,data,labels,yMin,yMax,yStep){
+function buatChart(id, data, label, min, max, step){
   return new Chart(document.getElementById(id),{
-    type:"line",
+    type:'line',
     data:{
-      labels:labels,
+      labels:data.map(d=>d.waktu),
       datasets:[{
         label:label,
-        data:data,
-        borderWidth:2,
-        tension:0.3,
-        pointRadius:4
+        data:data.map(d=>Number(d.value)),
+        borderWidth:2
       }]
     },
     options:{
@@ -28,79 +81,49 @@ function createChart(id,label,data,labels,yMin,yMax,yStep){
       maintainAspectRatio:false,
       scales:{
         y:{
-          min:yMin,
-          max:yMax,
-          ticks:{
-            stepSize:yStep
-          }
-        }
-      },
-      plugins:{
-        datalabels:{
-          color:'white',
-          anchor:'end',
-          align:'top',
-          formatter:(v)=>v
-        },
-        zoom:{
-          pan:{
-            enabled:true,
-            mode:'x',
-            modifierKey:'ctrl'
-          },
-          zoom:{
-            wheel:{
-              enabled:true,
-              modifierKey:'ctrl'
-            },
-            pinch:{ enabled:true },
-            mode:'x'
-          }
+          min:min,
+          max:max,
+          ticks:{ stepSize:step }
         }
       }
     }
   });
 }
 
-function load(){
+function loadData(){
  fetch(url)
- .then(r=>r.json())
+ .then(res=>res.json())
  .then(data=>{
 
-  if(!data || data.length === 0) return;
+  if(!data || data.length==0) return;
 
   let last = data[data.length-1];
 
-  document.getElementById("suhu").innerText = last.suhu+" °C";
-  document.getElementById("hum").innerText = last.hum+" %";
-  document.getElementById("gas").innerText = last.gas+" ("+last.status+")";
+  document.getElementById("suhu").innerText = last.suhu;
+  document.getElementById("hum").innerText = last.hum;
+  document.getElementById("gas").innerText = last.gas;
 
-  let gasCard = document.getElementById("gasCard");
-  gasCard.className = (last.gas > 600) ? "card danger" : "card safe";
+  let suhuData = data.slice(-20).map(d=>({waktu:d.waktu, value:d.suhu}));
+  let humData  = data.slice(-20).map(d=>({waktu:d.waktu, value:d.hum}));
+  let gasData  = data.slice(-20).map(d=>({waktu:d.waktu, value:d.gas}));
 
-  let suhu=[], hum=[], gas=[], waktu=[];
+  if(chart1) chart1.destroy();
+  if(chart2) chart2.destroy();
+  if(chart3) chart3.destroy();
 
-  data.slice(-30).forEach(d=>{
-    suhu.push(Number(d.suhu));
-    hum.push(Number(d.hum));
-    gas.push(Number(d.gas));
-    waktu.push(d.waktu);
-  });
-
-  if(chartSuhu) chartSuhu.destroy();
-  if(chartHum) chartHum.destroy();
-  if(chartGas) chartGas.destroy();
-
-  chartSuhu = createChart("chartSuhu","Suhu",suhu,waktu,15,50,5);
-  chartHum  = createChart("chartHum","Humidity",hum,waktu,50,90,10);
-  chartGas  = createChart("chartGas","Gas",gas,waktu,50,800,100);
+  chart1 = buatChart("chartSuhu", suhuData, "Suhu", 15,50,5);
+  chart2 = buatChart("chartHum", humData, "Humidity", 50,90,10);
+  chart3 = buatChart("chartGas", gasData, "Gas", 50,800,100);
 
  })
- .catch(err=>{
-   console.log("ERROR:", err);
- });
+ .catch(err=>console.log(err));
 }
 
-load();
-setInterval(load,3000);
+window.onload = function(){
+  loadData();
+  setInterval(loadData,3000);
+}
 </script>
+
+</body>
+</html>
