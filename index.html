@@ -13,19 +13,24 @@
 <button onclick="control('STOP')">STOP</button>
 <button onclick="control('RESET')">RESET</button>
 
+<label style="margin-left:20px;">Interval (ms):
+  <input type="number" id="intervalInput" value="5000" style="width:80px;">
+  <button onclick="setIntervalValue()">SET</button>
+</label>
+
 <canvas id="chart"></canvas>
 
 <h3>Data Table</h3>
 <table border="1" id="table"></table>
 
 <script>
-
-// ✅ SUDAH DIGANTI
+// Spreadsheet JSON URL
 const sheetURL = "https://opensheet.elk.sh/1gWWiBahN4xX77jh8J0RvxgnPdZQxAEfSRPCHPi7x6p4/Sheet1";
 
-// ✅ SCRIPT KAMU
+// Google Script URL
 const scriptURL = "https://script.google.com/macros/s/AKfycbz-U9RmhG1ZhpFb4UMSbdxlgs_nO2xwIAORl6G2VwLebiYKQuwDfJTfK16uJawpnll4eQ/exec";
 
+// Fungsi warna status
 function warnaStatus(status) {
   if (status.includes("Baik")) return "green";
   if (status.includes("Sedang")) return "yellow";
@@ -36,69 +41,93 @@ function warnaStatus(status) {
 }
 
 let chart;
+let fetchInterval = 5000; // default 5 detik
+let intervalID;
 
+// Ambil data dari spreadsheet
 async function fetchData() {
+  try {
+    let res = await fetch(sheetURL);
+    let data = await res.json();
 
-  let res = await fetch(sheetURL);
-  let data = await res.json();
+    let labels = [];
+    let temp = [];
+    let hum = [];
+    let gas = [];
 
-  let labels = [];
-  let temp = [];
-  let hum = [];
-  let gas = [];
+    // Tabel header
+    let table = `
+      <tr>
+        <th>No</th>
+        <th>Time</th>
+        <th>Temp</th>
+        <th>Hum</th>
+        <th>Gas_Level</th>
+        <th>Status</th>
+      </tr>`;
 
-  let table = `
-  <tr>
-    <th>No</th>
-    <th>Time</th>
-    <th>Temp</th>
-    <th>Hum</th>
-    <th>Gas_Level</th>
-    <th>Status</th>
-  </tr>`;
+    data.forEach(row => {
+      labels.push(row.Time);
+      temp.push(row.Temp);
+      hum.push(row.Hum);
+      gas.push(row.Gas_Level);
 
-  data.forEach(row => {
+      table += `
+        <tr>
+          <td>${row.No}</td>
+          <td>${row.Time}</td>
+          <td>${row.Temp}</td>
+          <td>${row.Hum}</td>
+          <td>${row.Gas_Level}</td>
+          <td style="color:${warnaStatus(row.Status)}">${row.Status}</td>
+        </tr>`;
+    });
 
-    labels.push(row.Time);
-    temp.push(row.Temp);
-    hum.push(row.Hum);
-    gas.push(row.Gas_Level);
+    document.getElementById("table").innerHTML = table;
 
-    table += `
-    <tr>
-      <td>${row.No}</td>
-      <td>${row.Time}</td>
-      <td>${row.Temp}</td>
-      <td>${row.Hum}</td>
-      <td>${row.Gas_Level}</td>
-      <td style="color:${warnaStatus(row.Status)}">${row.Status}</td>
-    </tr>`;
-  });
+    if (chart) chart.destroy();
 
-  document.getElementById("table").innerHTML = table;
-
-  if (chart) chart.destroy();
-
-  chart = new Chart(document.getElementById("chart"), {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [
-        { label: 'Temp', data: temp },
-        { label: 'Hum', data: hum },
-        { label: 'Gas', data: gas }
-      ]
-    }
-  });
+    chart = new Chart(document.getElementById("chart"), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Temp', data: temp, borderColor:'red', fill:false },
+          { label: 'Hum', data: hum, borderColor:'blue', fill:false },
+          { label: 'Gas', data: gas, borderColor:'green', fill:false }
+        ]
+      },
+      options: {
+        responsive:true,
+        plugins: { legend:{labels:{color:'white'}} },
+        scales:{
+          x:{ ticks:{color:'white'} },
+          y:{ ticks:{color:'white'} }
+        }
+      }
+    });
+  } catch(err){
+    console.error("Fetch Error:", err);
+  }
 }
 
-async function control(cmd) {
+// Kontrol START / STOP / RESET
+async function control(cmd){
   await fetch(scriptURL + "?action=" + cmd);
+  if(cmd === "RESET") chart && chart.destroy(); // clear chart
 }
 
-setInterval(fetchData, 5000);
+// Set interval baru
+function setIntervalValue(){
+  fetchInterval = parseInt(document.getElementById("intervalInput").value);
+  fetch(scriptURL+"?action=INTERVAL:"+fetchInterval);
+  clearInterval(intervalID);
+  intervalID = setInterval(fetchData, fetchInterval);
+}
+
+// Start interval awal
+intervalID = setInterval(fetchData, fetchInterval);
 
 </script>
-
 </body>
 </html>
