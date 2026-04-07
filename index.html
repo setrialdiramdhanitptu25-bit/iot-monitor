@@ -24,13 +24,13 @@
 <table border="1" id="table"></table>
 
 <script>
-// Spreadsheet JSON URL
+
+// 📍 Spreadsheet JSON via opensheet
 const sheetURL = "https://opensheet.elk.sh/1gWWiBahN4xX77jh8J0RvxgnPdZQxAEfSRPCHPi7x6p4/Sheet1";
 
-// Google Script URL
-const scriptURL = "https://script.google.com/macros/s/AKfycbz-U9RmhG1ZhpFb4UMSbdxlgs_nO2xwIAORl6G2VwLebiYKQuwDfJTfK16uJawpnll4eQ/exec";
+// 📍 Google Script (Controller)
+const scriptURL = "https://script.google.com/macros/s/AKfycbxvnAkc9fQc5wjXyDNnsmiCRpZaASDRzvhGfQmxAwwhAVaZTZuFFQRtb2hMSpqGW6Ih/exec";
 
-// Fungsi warna status
 function warnaStatus(status) {
   if (status.includes("Baik")) return "green";
   if (status.includes("Sedang")) return "yellow";
@@ -41,10 +41,9 @@ function warnaStatus(status) {
 }
 
 let chart;
-let fetchInterval = 5000; // default 5 detik
+let fetchInterval = 5000;
 let intervalID;
 
-// Ambil data dari spreadsheet
 async function fetchData() {
   try {
     let res = await fetch(sheetURL);
@@ -55,7 +54,6 @@ async function fetchData() {
     let hum = [];
     let gas = [];
 
-    // Tabel header
     let table = `
       <tr>
         <th>No</th>
@@ -68,9 +66,9 @@ async function fetchData() {
 
     data.forEach(row => {
       labels.push(row.Time);
-      temp.push(row.Temp);
-      hum.push(row.Hum);
-      gas.push(row.Gas_Level);
+      temp.push(parseFloat(row.Temp));
+      hum.push(parseFloat(row.Hum));
+      gas.push(parseFloat(row.Gas_Level));
 
       table += `
         <tr>
@@ -99,25 +97,27 @@ async function fetchData() {
       },
       options: {
         responsive:true,
-        plugins: { legend:{labels:{color:'white'}} },
+        plugins:{ legend:{labels:{color:'white'}} },
         scales:{
           x:{ ticks:{color:'white'} },
           y:{ ticks:{color:'white'} }
         }
       }
     });
+
   } catch(err){
     console.error("Fetch Error:", err);
   }
 }
 
-// Kontrol START / STOP / RESET
 async function control(cmd){
   await fetch(scriptURL + "?action=" + cmd);
-  if(cmd === "RESET") chart && chart.destroy(); // clear chart
+  if(cmd === "RESET" && chart){
+    chart.destroy();
+    document.getElementById("table").innerHTML = ""; 
+  }
 }
 
-// Set interval baru
 function setIntervalValue(){
   fetchInterval = parseInt(document.getElementById("intervalInput").value);
   fetch(scriptURL+"?action=INTERVAL:"+fetchInterval);
@@ -125,7 +125,6 @@ function setIntervalValue(){
   intervalID = setInterval(fetchData, fetchInterval);
 }
 
-// Start interval awal
 intervalID = setInterval(fetchData, fetchInterval);
 
 </script>
