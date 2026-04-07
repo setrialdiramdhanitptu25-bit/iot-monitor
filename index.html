@@ -1,72 +1,72 @@
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include "DHT.h"
+<!DOCTYPE html>
+<html>
+<head>
+  <title>IoT Monitoring</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
 
-// ======= Konfigurasi WiFi =======
-const char* ssid = "POCO X5 5G";
-const char* password = "123456789";
+<h2>Data Sensor</h2>
 
-// ======= Konfigurasi Web App =======
-const char* scriptURL = "https://script.google.com/macros/s/AKfycbxIkWUVLapdydhv6nLPeTq1E2DHeBupOmL1zxMvJAt24G3y1EbsK3K_e9FEMUFFTt3qBw/exec";
+<table border="1">
+  <thead>
+    <tr>
+      <th>Waktu</th>
+      <th>Suhu</th>
+      <th>Hum</th>
+      <th>Gas</th>
+    </tr>
+  </thead>
+  <tbody id="data"></tbody>
+</table>
 
-// ======= Konfigurasi Sensor =======
-#define DHTPIN 4
-#define DHTTYPE DHT11
-DHT dht(DHTPIN, DHTTYPE);
+<canvas id="chart"></canvas>
 
-#define MQ2PIN 34
+<script>
+const url = "URL_SCRIPT_KAMU";
 
-// Interval kirim data (ms)
-unsigned long interval = 5000;  // 5 detik
-unsigned long previousMillis = 0;
+function loadData() {
+  fetch(url)
+  .then(res => res.json())
+  .then(data => {
 
-void setup() {
-  Serial.begin(115200);
-  dht.begin();
-  pinMode(MQ2PIN, INPUT);
+    let table = document.getElementById("data");
+    table.innerHTML = "";
 
-  Serial.print("Connecting to WiFi");
-  WiFi.begin(ssid, password);
-  while(WiFi.status() != WL_CONNECTED){
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi Connected");
-}
+    let suhu = [];
+    let waktu = [];
 
-void loop() {
-  unsigned long currentMillis = millis();
-  if(currentMillis - previousMillis >= interval){
-    previousMillis = currentMillis;
+    data.slice(-30).forEach(d => {
+      table.innerHTML += `
+        <tr>
+          <td>${d.waktu}</td>
+          <td>${d.suhu}</td>
+          <td>${d.hum}</td>
+          <td>${d.gas}</td>
+        </tr>
+      `;
 
-    // ===== Baca Sensor =====
-    float temp = dht.readTemperature();
-    float hum  = dht.readHumidity();
-    int gas = analogRead(MQ2PIN);
+      suhu.push(d.suhu);
+      waktu.push(d.waktu);
+    });
 
-    if (isnan(temp) || isnan(hum)) {
-      Serial.println("Failed to read DHT sensor!");
-      return;
-    }
-
-    Serial.println("Temperature: " + String(temp) + "°C");
-    Serial.println("Humidity: " + String(hum) + "%");
-    Serial.println("Gas: " + String(gas));
-
-    // ===== Kirim ke Spreadsheet =====
-    if(WiFi.status() == WL_CONNECTED){
-      HTTPClient http;
-      String url = String(scriptURL) + "?temperature=" + temp + "&humidity=" + hum + "&gas=" + gas;
-      http.begin(url);
-      int httpCode = http.GET();
-      if(httpCode > 0){
-        Serial.println("Data sent, response: " + String(httpCode));
-      } else {
-        Serial.println("Error sending data");
+    new Chart(document.getElementById("chart"), {
+      type: "line",
+      data: {
+        labels: waktu,
+        datasets: [{
+          label: "Suhu",
+          data: suhu
+        }]
       }
-      http.end();
-    } else {
-      Serial.println("WiFi not connected");
-    }
-  }
+    });
+
+  });
 }
+
+loadData();
+setInterval(loadData, 5000);
+</script>
+
+</body>
+</html>
