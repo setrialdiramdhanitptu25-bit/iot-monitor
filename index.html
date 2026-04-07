@@ -1,138 +1,172 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard IoT Live Table</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
-<style>
-body { margin:0; font-family:Arial,sans-serif; background:#0f172a; color:white; text-align:center; }
-.container { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:10px; }
-.card { background:#1e293b; padding:10px; border-radius:10px; width:120px; }
-.chart-box { width:95%; max-width:800px; height:300px; margin:20px auto; background:#1e293b; border-radius:10px; }
-canvas { width:100% !important; height:100% !important; }
-.table-container { width:95%; max-width:800px; margin:20px auto; background:#1e293b; border-radius:10px; overflow-x:auto; overflow-y:auto; max-height:500px; padding:10px; }
-table { width:100%; border-collapse:collapse; }
-th, td { border:1px solid #ccc; padding:5px 8px; text-align:center; color:white; }
-th { background:#334155; position: sticky; top:0; }
-</style>
-</head>
-<body>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <DHT.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 
-<h2>Dashboard IoT Live</h2>
+#define DHTPIN 4
+#define DHTTYPE DHT11
+#define MQ2_PIN 35
 
-<div class="container">
-  <div class="card"><h4>Suhu</h4><div id="suhu">-</div></div>
-  <div class="card"><h4>Hum</h4><div id="hum">-</div></div>
-  <div class="card"><h4>Gas</h4><div id="gas">-</div></div>
-</div>
+#define LED_HIJAU 18
+#define LED_KUNING 19
+#define LED_MERAH 23
 
-<div class="chart-box"><canvas id="chartSuhu"></canvas></div>
-<div class="chart-box"><canvas id="chartHum"></canvas></div>
-<div class="chart-box"><canvas id="chartGas"></canvas></div>
+const char* ssid = "Mamah Dani 2.4 G";
+const char* password = "Setrialdi292";
 
-<h3>Data Lengkap</h3>
-<div class="table-container">
-  <table id="dataTable">
-    <thead>
-      <tr><th>No</th><th>Waktu</th><th>Suhu</th><th>Hum</th><th>Gas</th></tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-</div>
+String serverName = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
 
-<script>
-const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
+DHT dht(DHTPIN, DHTTYPE);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-let chart1, chart2, chart3;
-let lastDataLength = 0;
+bool isRunning = true;
+int baseline = 465;
 
-function getStepSize(value){ return value <= 100 ? 10 : 100; }
+// ===== MQ2 =====
+int readMQ2() {
+  int total = 0;
+  for(int i=0;i<10;i++){
+    total += analogRead(MQ2_PIN);
+    delay(10);
+  }
+  return total / 10;
+}
 
-function buatChart(id, data, label, min, max){
-  const step = getStepSize(max);
-  return new Chart(document.getElementById(id), {
-    type:'line',
-    data:{
-      labels:data.map(d=>d.waktu),
-      datasets:[{
-        label: label,
-        data:data.map(d=>Number(d.value)),
-        borderWidth:2,
-        borderColor: label==="Gas"?"orange":label==="Humidity"?"cyan":"lime",
-        backgroundColor:'transparent',
-        tension:0.3
-      }]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      interaction:{mode:'nearest', axis:'x', intersect:false},
-      scales:{
-        x:{ display:true, title:{ display:true, text:'Waktu' } },
-        y:{ min:min, max:max, ticks:{ stepSize: step } }
-      },
-      plugins:{ zoom:{ pan:{ enabled:true, mode:'x' }, zoom:{ wheel:{ enabled:true }, pinch:{ enabled:true }, mode:'x' } } }
+int smoothGas() {
+  int arr[5];
+  for(int i=0;i<5;i++){
+    arr[i] = readMQ2();
+    delay(5);
+  }
+
+  for(int i=0;i<4;i++){
+    for(int j=i+1;j<5;j++){
+      if(arr[i]>arr[j]){
+        int t = arr[i];
+        arr[i]=arr[j];
+        arr[j]=t;
+      }
     }
-  });
+  }
+  return arr[2];
 }
 
-function updateChartAndCards(data){
-  const last = data[data.length-1];
-  document.getElementById("suhu").innerText = last.suhu;
-  document.getElementById("hum").innerText = last.hum;
-  document.getElementById("gas").innerText = last.gas;
+// ===== STATUS + LED =====
+String gasStatus(int gas){
+  int delta = gas - baseline;
 
-  const suhuData = data.slice(-20).map(d=>({waktu:d.waktu,value:d.suhu}));
-  const humData  = data.slice(-20).map(d=>({waktu:d.waktu,value:d.hum}));
-  const gasData  = data.slice(-20).map(d=>({waktu:d.waktu,value:d.gas}));
+  digitalWrite(LED_HIJAU, LOW);
+  digitalWrite(LED_KUNING, LOW);
+  digitalWrite(LED_MERAH, LOW);
 
-  if(chart1) chart1.destroy();
-  if(chart2) chart2.destroy();
-  if(chart3) chart3.destroy();
-
-  const suhuMax = Math.max(...suhuData.map(d=>Number(d.value))) +5;
-  const humMax = Math.max(...humData.map(d=>Number(d.value))) +5;
-  let gasMax = Math.max(...gasData.map(d=>Number(d.value)));
-  if(gasMax <100) gasMax=100;
-  if(gasMax>10000) gasMax=10000;
-
-  chart1 = buatChart("chartSuhu", suhuData, "Suhu",15,suhuMax);
-  chart2 = buatChart("chartHum", humData, "Humidity",50,humMax);
-  chart3 = buatChart("chartGas", gasData, "Gas",10,gasMax);
-}
-
-function updateTable(data){
-  const tbody = document.querySelector("#dataTable tbody");
-
-  // Hanya rebuild jika jumlah data berubah
-  if(data.length !== lastDataLength){
-    tbody.innerHTML = "";
-    data.forEach((d,i)=>{
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${i+1}</td><td>${d.waktu}</td><td>${d.suhu}</td><td>${d.hum}</td><td>${d.gas}</td>`;
-      tbody.appendChild(tr);
-    });
-    lastDataLength = data.length;
+  if(delta <= 20){
+    digitalWrite(LED_HIJAU, HIGH);
+    return "Bersih";
+  }
+  else if(delta <= 80){
+    digitalWrite(LED_KUNING, HIGH);
+    return "Kotor";
+  }
+  else if(delta <= 200){
+    digitalWrite(LED_MERAH, HIGH);
+    return "Asap";
+  }
+  else{
+    digitalWrite(LED_MERAH, HIGH);
+    return "Bahaya!";
   }
 }
 
-function loadData(){
-  fetch(url)
-  .then(res=>res.json())
-  .then(data=>{
-    if(!data || data.length===0) return;
-    updateChartAndCards(data);
-    updateTable(data); // tabel selalu mengikuti jumlah baris di spreadsheet
-  })
-  .catch(err=>console.log(err));
+// ===== AMBIL STATUS =====
+String getStatus(){
+  HTTPClient http;
+  http.begin(serverName + "?mode=status");
+  int code = http.GET();
+
+  String payload = "";
+  if(code > 0){
+    payload = http.getString();
+  }
+
+  http.end();
+  return payload;
 }
 
-window.onload = function(){
-  loadData();
-  setInterval(loadData,3000); // update otomatis tiap 3 detik
-}
-</script>
+void setup() {
+  Serial.begin(115200);
 
-</body>
-</html>
+  pinMode(LED_HIJAU, OUTPUT);
+  pinMode(LED_KUNING, OUTPUT);
+  pinMode(LED_MERAH, OUTPUT);
+
+  lcd.init();
+  lcd.backlight();
+  lcd.print("Starting...");
+
+  WiFi.begin(ssid,password);
+  while(WiFi.status() != WL_CONNECTED){
+    delay(500);
+    Serial.print(".");
+  }
+
+  lcd.clear();
+  lcd.print("WiFi Connected");
+
+  dht.begin();
+  delay(2000);
+  lcd.clear();
+}
+
+void loop() {
+
+  String serverStatus = getStatus();
+  isRunning = (serverStatus == "RUN");
+
+  if(!isRunning){
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("SYSTEM STOP");
+    delay(3000);
+    return;
+  }
+
+  float suhu = dht.readTemperature();
+  float hum = dht.readHumidity();
+
+  if(isnan(suhu) || isnan(hum)){
+    Serial.println("DHT error!");
+    return;
+  }
+
+  int gas = smoothGas();
+  String status = gasStatus(gas);
+
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("G:");
+  lcd.print(gas);
+
+  lcd.setCursor(0,1);
+  lcd.print(status);
+
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+
+    String statusEncoded = status;
+    statusEncoded.replace(" ", "%20");
+
+    String url = serverName +
+      "?suhu=" + String(suhu) +
+      "&hum=" + String(hum) +
+      "&gas=" + String(gas) +
+      "&status=" + statusEncoded;
+
+    http.begin(url);
+    int code = http.GET();
+    Serial.println(code);
+    http.end();
+  }
+
+  delay(5000);
+}
