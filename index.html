@@ -1,132 +1,72 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>IoT Air Monitoring</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include "DHT.h"
 
-<body style="background:#0f172a;color:white;font-family:Arial">
+// ======= Konfigurasi WiFi =======
+const char* ssid = "POCO X5 5G";
+const char* password = "123456789";
 
-<h2>Dashboard Monitoring Udara</h2>
+// ======= Konfigurasi Web App =======
+const char* scriptURL = "https://script.google.com/macros/s/AKfycbxIkWUVLapdydhv6nLPeTq1E2DHeBupOmL1zxMvJAt24G3y1EbsK3K_e9FEMUFFTt3qBw/exec";
 
-<button onclick="control('START')">START</button>
-<button onclick="control('STOP')">STOP</button>
-<button onclick="control('RESET')">RESET</button>
+// ======= Konfigurasi Sensor =======
+#define DHTPIN 4
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
 
-<label style="margin-left:20px;">Interval (ms):
-  <input type="number" id="intervalInput" value="5000" style="width:80px;">
-  <button onclick="setIntervalValue()">SET</button>
-</label>
+#define MQ2PIN 34
 
-<canvas id="chart"></canvas>
+// Interval kirim data (ms)
+unsigned long interval = 5000;  // 5 detik
+unsigned long previousMillis = 0;
 
-<h3>Data Table</h3>
-<table border="1" id="table"></table>
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  pinMode(MQ2PIN, INPUT);
 
-<script>
-
-// 📍 Spreadsheet JSON via opensheet
-const sheetURL = "https://opensheet.elk.sh/1gWWiBahN4xX77jh8J0RvxgnPdZQxAEfSRPCHPi7x6p4/Sheet1";
-
-// 📍 Google Script (Controller)
-const scriptURL = "https://script.google.com/macros/s/AKfycbxvnAkc9fQc5wjXyDNnsmiCRpZaASDRzvhGfQmxAwwhAVaZTZuFFQRtb2hMSpqGW6Ih/exec";
-
-function warnaStatus(status) {
-  if (status.includes("Baik")) return "green";
-  if (status.includes("Sedang")) return "yellow";
-  if (status.includes("Tidak Sehat (Sensitif)")) return "orange";
-  if (status.includes("Tidak Sehat")) return "red";
-  if (status.includes("Sangat Tidak Sehat")) return "purple";
-  return "maroon";
+  Serial.print("Connecting to WiFi");
+  WiFi.begin(ssid, password);
+  while(WiFi.status() != WL_CONNECTED){
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi Connected");
 }
 
-let chart;
-let fetchInterval = 5000;
-let intervalID;
+void loop() {
+  unsigned long currentMillis = millis();
+  if(currentMillis - previousMillis >= interval){
+    previousMillis = currentMillis;
 
-async function fetchData() {
-  try {
-    let res = await fetch(sheetURL);
-    let data = await res.json();
+    // ===== Baca Sensor =====
+    float temp = dht.readTemperature();
+    float hum  = dht.readHumidity();
+    int gas = analogRead(MQ2PIN);
 
-    let labels = [];
-    let temp = [];
-    let hum = [];
-    let gas = [];
+    if (isnan(temp) || isnan(hum)) {
+      Serial.println("Failed to read DHT sensor!");
+      return;
+    }
 
-    let table = `
-      <tr>
-        <th>No</th>
-        <th>Time</th>
-        <th>Temp</th>
-        <th>Hum</th>
-        <th>Gas_Level</th>
-        <th>Status</th>
-      </tr>`;
+    Serial.println("Temperature: " + String(temp) + "°C");
+    Serial.println("Humidity: " + String(hum) + "%");
+    Serial.println("Gas: " + String(gas));
 
-    data.forEach(row => {
-      labels.push(row.Time);
-      temp.push(parseFloat(row.Temp));
-      hum.push(parseFloat(row.Hum));
-      gas.push(parseFloat(row.Gas_Level));
-
-      table += `
-        <tr>
-          <td>${row.No}</td>
-          <td>${row.Time}</td>
-          <td>${row.Temp}</td>
-          <td>${row.Hum}</td>
-          <td>${row.Gas_Level}</td>
-          <td style="color:${warnaStatus(row.Status)}">${row.Status}</td>
-        </tr>`;
-    });
-
-    document.getElementById("table").innerHTML = table;
-
-    if (chart) chart.destroy();
-
-    chart = new Chart(document.getElementById("chart"), {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [
-          { label: 'Temp', data: temp, borderColor:'red', fill:false },
-          { label: 'Hum', data: hum, borderColor:'blue', fill:false },
-          { label: 'Gas', data: gas, borderColor:'green', fill:false }
-        ]
-      },
-      options: {
-        responsive:true,
-        plugins:{ legend:{labels:{color:'white'}} },
-        scales:{
-          x:{ ticks:{color:'white'} },
-          y:{ ticks:{color:'white'} }
-        }
+    // ===== Kirim ke Spreadsheet =====
+    if(WiFi.status() == WL_CONNECTED){
+      HTTPClient http;
+      String url = String(scriptURL) + "?temperature=" + temp + "&humidity=" + hum + "&gas=" + gas;
+      http.begin(url);
+      int httpCode = http.GET();
+      if(httpCode > 0){
+        Serial.println("Data sent, response: " + String(httpCode));
+      } else {
+        Serial.println("Error sending data");
       }
-    });
-
-  } catch(err){
-    console.error("Fetch Error:", err);
+      http.end();
+    } else {
+      Serial.println("WiFi not connected");
+    }
   }
 }
-
-async function control(cmd){
-  await fetch(scriptURL + "?action=" + cmd);
-  if(cmd === "RESET" && chart){
-    chart.destroy();
-    document.getElementById("table").innerHTML = ""; 
-  }
-}
-
-function setIntervalValue(){
-  fetchInterval = parseInt(document.getElementById("intervalInput").value);
-  fetch(scriptURL+"?action=INTERVAL:"+fetchInterval);
-  clearInterval(intervalID);
-  intervalID = setInterval(fetchData, fetchInterval);
-}
-
-intervalID = setInterval(fetchData, fetchInterval);
-
-</script>
-</body>
-</html>
