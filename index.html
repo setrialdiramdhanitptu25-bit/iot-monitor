@@ -1,71 +1,192 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>IoT Monitoring</title>
+  <title>Dashboard IoT PRO</title>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
+
+  <style>
+    body {
+      background: #0f172a;
+      color: white;
+      text-align: center;
+      font-family: Arial;
+    }
+
+    .container {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin: 20px;
+      flex-wrap: wrap;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 15px;
+      width: 150px;
+    }
+
+    .danger { background: red !important; }
+    .safe { background: green !important; }
+
+    table {
+      margin: auto;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      border: 1px solid white;
+      padding: 8px;
+    }
+  </style>
 </head>
+
 <body>
 
-<h2>Data Sensor</h2>
+<h1>🔥 Dashboard IoT PRO</h1>
 
-<table border="1">
-  <thead>
-    <tr>
-      <th>Waktu</th>
-      <th>Suhu</th>
-      <th>Hum</th>
-      <th>Gas</th>
-    </tr>
-  </thead>
-  <tbody id="data"></tbody>
+<div class="container">
+  <div class="card">
+    <h3>Suhu</h3>
+    <div id="suhu">-</div>
+  </div>
+
+  <div class="card">
+    <h3>Humidity</h3>
+    <div id="hum">-</div>
+  </div>
+
+  <div class="card" id="gasCard">
+    <h3>Gas</h3>
+    <div id="gas">-</div>
+  </div>
+</div>
+
+<h2>📊 Data Rata-rata (per 10)</h2>
+
+<table>
+<tr>
+<th>Waktu</th>
+<th>Suhu</th>
+<th>Hum</th>
+<th>Gas</th>
+</tr>
+<tbody id="data"></tbody>
 </table>
 
 <canvas id="chart"></canvas>
 
 <script>
-const url = "URL_SCRIPT_KAMU";
+const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
 
-function loadData() {
-  fetch(url)
-  .then(res => res.json())
-  .then(data => {
+let chart;
 
-    let table = document.getElementById("data");
-    table.innerHTML = "";
+function averageData(data, size=10){
+  let result = [];
 
-    let suhu = [];
-    let waktu = [];
+  for(let i=0; i<data.length; i+=size){
+    let chunk = data.slice(i, i+size);
 
-    data.slice(-30).forEach(d => {
-      table.innerHTML += `
-        <tr>
-          <td>${d.waktu}</td>
-          <td>${d.suhu}</td>
-          <td>${d.hum}</td>
-          <td>${d.gas}</td>
-        </tr>
-      `;
+    let suhu=0, hum=0, gas=0;
 
-      suhu.push(d.suhu);
-      waktu.push(d.waktu);
+    chunk.forEach(d=>{
+      suhu += parseFloat(d.suhu);
+      hum += parseFloat(d.hum);
+      gas += parseFloat(d.gas);
     });
 
-    new Chart(document.getElementById("chart"), {
-      type: "line",
-      data: {
-        labels: waktu,
-        datasets: [{
-          label: "Suhu",
-          data: suhu
-        }]
-      }
-    });
+    let avg = {
+      waktu: chunk[chunk.length-1].waktu,
+      suhu: (suhu/chunk.length).toFixed(2),
+      hum: (hum/chunk.length).toFixed(2),
+      gas: (gas/chunk.length).toFixed(0)
+    };
 
+    result.push(avg);
+  }
+
+  return result;
+}
+
+function loadData(){
+ fetch(url)
+ .then(res=>res.json())
+ .then(raw=>{
+
+  let data = averageData(raw, 10);
+
+  let table = document.getElementById("data");
+  table.innerHTML="";
+
+  let suhuArr = [];
+  let waktuArr = [];
+
+  let last = raw[raw.length-1];
+
+  // 🔥 REALTIME CARD
+  document.getElementById("suhu").innerText = last.suhu + " °C";
+  document.getElementById("hum").innerText = last.hum + " %";
+  document.getElementById("gas").innerText = last.gas;
+
+  let gasCard = document.getElementById("gasCard");
+
+  if(last.gas > 600){
+    gasCard.classList.add("danger");
+    gasCard.classList.remove("safe");
+  } else {
+    gasCard.classList.add("safe");
+    gasCard.classList.remove("danger");
+  }
+
+  data.slice(-20).forEach(d=>{
+    table.innerHTML+=`
+    <tr>
+    <td>${d.waktu}</td>
+    <td>${d.suhu}</td>
+    <td>${d.hum}</td>
+    <td>${d.gas}</td>
+    </tr>`;
+
+    suhuArr.push(d.suhu);
+    waktuArr.push(d.waktu);
   });
+
+  if(chart) chart.destroy();
+
+  chart = new Chart(document.getElementById("chart"), {
+    type: "line",
+    data: {
+      labels: waktuArr,
+      datasets: [{
+        label: "Suhu (Avg 10)",
+        data: suhuArr
+      }]
+    },
+    options: {
+      plugins: {
+        zoom: {
+          zoom: {
+            wheel: { enabled: true },
+            pinch: { enabled: true },
+            mode: 'x'
+          },
+          pan: {
+            enabled: true,
+            mode: 'x'
+          }
+        }
+      }
+    }
+  });
+
+ });
 }
 
 loadData();
-setInterval(loadData, 5000);
+setInterval(loadData,3000); // 🔥 lebih cepat
 </script>
 
 </body>
