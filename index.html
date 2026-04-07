@@ -27,10 +27,21 @@
       padding: 20px;
       border-radius: 15px;
       width: 150px;
+      transition: 0.3s;
     }
 
-    .danger { background: red !important; }
-    .safe { background: green !important; }
+    .danger { 
+      background: red !important; 
+      animation: blink 1s infinite;
+    }
+
+    .safe { 
+      background: green !important; 
+    }
+
+    @keyframes blink {
+      50% { opacity: 0.3; }
+    }
 
     table {
       margin: auto;
@@ -41,6 +52,17 @@
       border: 1px solid white;
       padding: 8px;
     }
+
+    input, button {
+      padding: 10px;
+      margin: 5px;
+      border-radius: 8px;
+      border: none;
+    }
+
+    button {
+      cursor: pointer;
+    }
   </style>
 </head>
 
@@ -48,6 +70,15 @@
 
 <h1>🔥 Dashboard IoT PRO</h1>
 
+<!-- 🔧 CONTROL -->
+<div>
+  <input type="number" id="interval" value="5" placeholder="Interval (detik)">
+  <button onclick="setIntervalESP()">SET INTERVAL</button>
+  <button onclick="startLog()">START</button>
+  <button onclick="stopLog()">STOP</button>
+</div>
+
+<!-- 📊 CARD -->
 <div class="container">
   <div class="card">
     <h3>Suhu</h3>
@@ -77,13 +108,36 @@
 <tbody id="data"></tbody>
 </table>
 
+<br>
 <canvas id="chart"></canvas>
 
 <script>
-const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
+
+const url = "https://script.google.com/macros/s/AKfycbzfrY77J6LFkPUlfL6eUuMQb-vORkHdPY5HEYdnI5wanNc_9HuI6rvspGNd9ALKMUpNdQ/exec";
 
 let chart;
 
+// 🔧 SET INTERVAL
+function setIntervalESP(){
+  let val = document.getElementById("interval").value;
+
+  fetch(url + "?mode=set&interval=" + val)
+  .then(()=> alert("Interval diubah ke " + val + " detik"));
+}
+
+// ▶️ START
+function startLog(){
+  fetch(url + "?mode=set&logging=1")
+  .then(()=> alert("Logging START"));
+}
+
+// ⏹️ STOP
+function stopLog(){
+  fetch(url + "?mode=set&logging=0")
+  .then(()=> alert("Logging STOP"));
+}
+
+// 📊 AVERAGE DATA
 function averageData(data, size=10){
   let result = [];
 
@@ -98,23 +152,24 @@ function averageData(data, size=10){
       gas += parseFloat(d.gas);
     });
 
-    let avg = {
+    result.push({
       waktu: chunk[chunk.length-1].waktu,
       suhu: (suhu/chunk.length).toFixed(2),
       hum: (hum/chunk.length).toFixed(2),
       gas: (gas/chunk.length).toFixed(0)
-    };
-
-    result.push(avg);
+    });
   }
 
   return result;
 }
 
+// 🔄 LOAD DATA
 function loadData(){
  fetch(url)
  .then(res=>res.json())
  .then(raw=>{
+
+  if(raw.length == 0) return;
 
   let data = averageData(raw, 10);
 
@@ -129,13 +184,16 @@ function loadData(){
   // 🔥 REALTIME CARD
   document.getElementById("suhu").innerText = last.suhu + " °C";
   document.getElementById("hum").innerText = last.hum + " %";
-  document.getElementById("gas").innerText = last.gas;
+  document.getElementById("gas").innerText = last.gas + (last.gas > 600 ? " (BAHAYA)" : " (AMAN)");
 
   let gasCard = document.getElementById("gasCard");
 
   if(last.gas > 600){
     gasCard.classList.add("danger");
     gasCard.classList.remove("safe");
+
+    // 🔔 ALERT
+    console.log("⚠️ GAS BAHAYA!");
   } else {
     gasCard.classList.add("safe");
     gasCard.classList.remove("danger");
@@ -185,8 +243,10 @@ function loadData(){
  });
 }
 
+// 🔄 AUTO REFRESH
 loadData();
-setInterval(loadData,3000); // 🔥 lebih cepat
+setInterval(loadData, 3000);
+
 </script>
 
 </body>
