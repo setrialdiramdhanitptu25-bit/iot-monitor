@@ -1,172 +1,104 @@
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include <DHT.h>
-#include <Wire.h>
-#include <LiquidCrystal_I2C.h>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>IoT Air Monitoring</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
 
-#define DHTPIN 4
-#define DHTTYPE DHT11
-#define MQ2_PIN 35
+<body style="background:#0f172a;color:white;font-family:Arial">
 
-#define LED_HIJAU 18
-#define LED_KUNING 19
-#define LED_MERAH 23
+<h2>Dashboard Monitoring Udara</h2>
 
-const char* ssid = "Mamah Dani 2.4 G";
-const char* password = "Setrialdi292";
+<button onclick="control('START')">START</button>
+<button onclick="control('STOP')">STOP</button>
+<button onclick="control('RESET')">RESET</button>
 
-String serverName = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
+<canvas id="chart"></canvas>
 
-DHT dht(DHTPIN, DHTTYPE);
-LiquidCrystal_I2C lcd(0x27, 16, 2);
+<h3>Data Table</h3>
+<table border="1" id="table"></table>
 
-bool isRunning = true;
-int baseline = 465;
+<script>
 
-// ===== MQ2 =====
-int readMQ2() {
-  int total = 0;
-  for(int i=0;i<10;i++){
-    total += analogRead(MQ2_PIN);
-    delay(10);
-  }
-  return total / 10;
+// ✅ SUDAH DIGANTI
+const sheetURL = "https://opensheet.elk.sh/1gWWiBahN4xX77jh8J0RvxgnPdZQxAEfSRPCHPi7x6p4/Sheet1";
+
+// ✅ SCRIPT KAMU
+const scriptURL = "https://script.google.com/macros/s/AKfycbz-U9RmhG1ZhpFb4UMSbdxlgs_nO2xwIAORl6G2VwLebiYKQuwDfJTfK16uJawpnll4eQ/exec";
+
+function warnaStatus(status) {
+  if (status.includes("Baik")) return "green";
+  if (status.includes("Sedang")) return "yellow";
+  if (status.includes("Tidak Sehat (Sensitif)")) return "orange";
+  if (status.includes("Tidak Sehat")) return "red";
+  if (status.includes("Sangat Tidak Sehat")) return "purple";
+  return "maroon";
 }
 
-int smoothGas() {
-  int arr[5];
-  for(int i=0;i<5;i++){
-    arr[i] = readMQ2();
-    delay(5);
-  }
+let chart;
 
-  for(int i=0;i<4;i++){
-    for(int j=i+1;j<5;j++){
-      if(arr[i]>arr[j]){
-        int t = arr[i];
-        arr[i]=arr[j];
-        arr[j]=t;
-      }
+async function fetchData() {
+
+  let res = await fetch(sheetURL);
+  let data = await res.json();
+
+  let labels = [];
+  let temp = [];
+  let hum = [];
+  let gas = [];
+
+  let table = `
+  <tr>
+    <th>No</th>
+    <th>Time</th>
+    <th>Temp</th>
+    <th>Hum</th>
+    <th>Gas_Level</th>
+    <th>Status</th>
+  </tr>`;
+
+  data.forEach(row => {
+
+    labels.push(row.Time);
+    temp.push(row.Temp);
+    hum.push(row.Hum);
+    gas.push(row.Gas_Level);
+
+    table += `
+    <tr>
+      <td>${row.No}</td>
+      <td>${row.Time}</td>
+      <td>${row.Temp}</td>
+      <td>${row.Hum}</td>
+      <td>${row.Gas_Level}</td>
+      <td style="color:${warnaStatus(row.Status)}">${row.Status}</td>
+    </tr>`;
+  });
+
+  document.getElementById("table").innerHTML = table;
+
+  if (chart) chart.destroy();
+
+  chart = new Chart(document.getElementById("chart"), {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        { label: 'Temp', data: temp },
+        { label: 'Hum', data: hum },
+        { label: 'Gas', data: gas }
+      ]
     }
-  }
-  return arr[2];
+  });
 }
 
-// ===== STATUS + LED =====
-String gasStatus(int gas){
-  int delta = gas - baseline;
-
-  digitalWrite(LED_HIJAU, LOW);
-  digitalWrite(LED_KUNING, LOW);
-  digitalWrite(LED_MERAH, LOW);
-
-  if(delta <= 20){
-    digitalWrite(LED_HIJAU, HIGH);
-    return "Bersih";
-  }
-  else if(delta <= 80){
-    digitalWrite(LED_KUNING, HIGH);
-    return "Kotor";
-  }
-  else if(delta <= 200){
-    digitalWrite(LED_MERAH, HIGH);
-    return "Asap";
-  }
-  else{
-    digitalWrite(LED_MERAH, HIGH);
-    return "Bahaya!";
-  }
+async function control(cmd) {
+  await fetch(scriptURL + "?action=" + cmd);
 }
 
-// ===== AMBIL STATUS =====
-String getStatus(){
-  HTTPClient http;
-  http.begin(serverName + "?mode=status");
-  int code = http.GET();
+setInterval(fetchData, 5000);
 
-  String payload = "";
-  if(code > 0){
-    payload = http.getString();
-  }
+</script>
 
-  http.end();
-  return payload;
-}
-
-void setup() {
-  Serial.begin(115200);
-
-  pinMode(LED_HIJAU, OUTPUT);
-  pinMode(LED_KUNING, OUTPUT);
-  pinMode(LED_MERAH, OUTPUT);
-
-  lcd.init();
-  lcd.backlight();
-  lcd.print("Starting...");
-
-  WiFi.begin(ssid,password);
-  while(WiFi.status() != WL_CONNECTED){
-    delay(500);
-    Serial.print(".");
-  }
-
-  lcd.clear();
-  lcd.print("WiFi Connected");
-
-  dht.begin();
-  delay(2000);
-  lcd.clear();
-}
-
-void loop() {
-
-  String serverStatus = getStatus();
-  isRunning = (serverStatus == "RUN");
-
-  if(!isRunning){
-    lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("SYSTEM STOP");
-    delay(3000);
-    return;
-  }
-
-  float suhu = dht.readTemperature();
-  float hum = dht.readHumidity();
-
-  if(isnan(suhu) || isnan(hum)){
-    Serial.println("DHT error!");
-    return;
-  }
-
-  int gas = smoothGas();
-  String status = gasStatus(gas);
-
-  lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.print("G:");
-  lcd.print(gas);
-
-  lcd.setCursor(0,1);
-  lcd.print(status);
-
-  if (WiFi.status() == WL_CONNECTED) {
-    HTTPClient http;
-
-    String statusEncoded = status;
-    statusEncoded.replace(" ", "%20");
-
-    String url = serverName +
-      "?suhu=" + String(suhu) +
-      "&hum=" + String(hum) +
-      "&gas=" + String(gas) +
-      "&status=" + statusEncoded;
-
-    http.begin(url);
-    int code = http.GET();
-    Serial.println(code);
-    http.end();
-  }
-
-  delay(5000);
-}
+</body>
+</html>
