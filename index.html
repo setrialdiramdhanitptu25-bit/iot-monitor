@@ -6,34 +6,14 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
-    body {
-      background: #0f172a;
-      color: white;
-      text-align: center;
-      font-family: Arial;
-    }
-
-    .card {
-      display:inline-block;
-      background:#1e293b;
-      padding:20px;
-      margin:10px;
-      border-radius:15px;
-      width:150px;
-    }
-
+    body { background:#0f172a; color:white; text-align:center; font-family:Arial; }
+    .container { display:flex; justify-content:center; gap:20px; margin:20px; flex-wrap:wrap; }
+    .card { background:#1e293b; padding:20px; border-radius:15px; width:150px; }
     .danger { background:red !important; }
     .safe { background:green !important; }
 
-    table {
-      margin:auto;
-      border-collapse:collapse;
-    }
-
-    th,td {
-      border:1px solid white;
-      padding:8px;
-    }
+    table { margin:auto; border-collapse:collapse; }
+    th,td { border:1px solid white; padding:8px; }
   </style>
 </head>
 
@@ -41,53 +21,39 @@
 
 <h1>🔥 Dashboard IoT PRO</h1>
 
-<!-- CONTROL -->
+<div class="container">
+  <div class="card"><h3>Suhu</h3><div id="suhu">-</div></div>
+  <div class="card"><h3>Humidity</h3><div id="hum">-</div></div>
+  <div class="card" id="gasCard"><h3>Gas</h3><div id="gas">-</div></div>
+</div>
+
+<h3>Interval (detik)</h3>
 <input type="number" id="interval" value="5">
-<button onclick="setIntervalESP()">SET</button>
+<button onclick="setIntervalData()">SET</button>
+
+<br><br>
 <button onclick="startLog()">START</button>
 <button onclick="stopLog()">STOP</button>
 
-<br><br>
-
-<!-- CARD -->
-<div class="card"><h3>Suhu</h3><div id="suhu">-</div></div>
-<div class="card"><h3>Hum</h3><div id="hum">-</div></div>
-<div class="card" id="gasCard"><h3>Gas</h3><div id="gas">-</div></div>
-
-<h2>Data</h2>
+<h2>📊 Data</h2>
 
 <table>
-<tr><th>Waktu</th><th>Suhu</th><th>Hum</th><th>Gas</th></tr>
+<tr><th>Waktu</th><th>Suhu</th><th>Hum</th><th>Gas</th><th>Status</th></tr>
 <tbody id="data"></tbody>
 </table>
 
-<canvas id="chart"></canvas>
+<canvas id="chart1"></canvas>
+<canvas id="chart2"></canvas>
 
 <script>
+const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
 
-const url = "https://script.google.com/macros/s/AKfycbzfrY77J6LFkPUlfL6eUuMQb-vORkHdPY5HEYdnI5wanNc_9HuI6rvspGNd9ALKMUpNdQ/exec";
-
-let chart;
-
-function setIntervalESP(){
-  let val = document.getElementById("interval").value;
-  fetch(url+"?mode=set&interval="+val);
-}
-
-function startLog(){
-  fetch(url+"?mode=set&logging=1");
-}
-
-function stopLog(){
-  fetch(url+"?mode=set&logging=0");
-}
+let chart1, chart2;
 
 function loadData(){
  fetch(url)
  .then(res=>res.json())
  .then(data=>{
-
-  if(data.length==0) return;
 
   let table = document.getElementById("data");
   table.innerHTML="";
@@ -96,27 +62,28 @@ function loadData(){
 
   let last = data[data.length-1];
 
-  document.getElementById("suhu").innerText = last.suhu+" °C";
-  document.getElementById("hum").innerText = last.hum+" %";
+  document.getElementById("suhu").innerText = last.suhu;
+  document.getElementById("hum").innerText = last.hum;
   document.getElementById("gas").innerText = last.gas;
 
   let gasCard = document.getElementById("gasCard");
 
-  if(last.gas>600){
-    gasCard.classList.add("danger");
-    gasCard.classList.remove("safe");
+  if(last.gas > 700){
+    gasCard.className="card danger";
+  } else if(last.gas > 400){
+    gasCard.style.background="orange";
   } else {
-    gasCard.classList.add("safe");
-    gasCard.classList.remove("danger");
+    gasCard.className="card safe";
   }
 
   data.slice(-20).forEach(d=>{
-    table.innerHTML+=`
+    table.innerHTML += `
     <tr>
-    <td>${d.waktu}</td>
-    <td>${d.suhu}</td>
-    <td>${d.hum}</td>
-    <td>${d.gas}</td>
+      <td>${d.waktu}</td>
+      <td>${d.suhu}</td>
+      <td>${d.hum}</td>
+      <td>${d.gas}</td>
+      <td>${d.status}</td>
     </tr>`;
 
     suhuArr.push(d.suhu);
@@ -125,16 +92,26 @@ function loadData(){
     waktuArr.push(d.waktu);
   });
 
-  if(chart) chart.destroy();
+  if(chart1) chart1.destroy();
+  if(chart2) chart2.destroy();
 
-  chart = new Chart(document.getElementById("chart"),{
-    type:"line",
-    data:{
-      labels:waktuArr,
-      datasets:[
-        {label:"Suhu", data:suhuArr},
-        {label:"Humidity", data:humArr},
-        {label:"Gas", data:gasArr}
+  chart1 = new Chart(document.getElementById("chart1"), {
+    type: "line",
+    data: {
+      labels: waktuArr,
+      datasets: [
+        { label: "Suhu", data: suhuArr },
+        { label: "Humidity", data: humArr }
+      ]
+    }
+  });
+
+  chart2 = new Chart(document.getElementById("chart2"), {
+    type: "line",
+    data: {
+      labels: waktuArr,
+      datasets: [
+        { label: "Gas", data: gasArr }
       ]
     }
   });
@@ -142,9 +119,20 @@ function loadData(){
  });
 }
 
-setInterval(loadData,3000);
-loadData();
+function setIntervalData(){
+ fetch(url+"?mode=set&interval="+document.getElementById("interval").value);
+}
 
+function startLog(){
+ fetch(url+"?mode=set&logging=1");
+}
+
+function stopLog(){
+ fetch(url+"?mode=set&logging=0");
+}
+
+loadData();
+setInterval(loadData,3000);
 </script>
 
 </body>
