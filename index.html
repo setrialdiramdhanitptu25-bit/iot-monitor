@@ -12,7 +12,13 @@
     .danger { background:red !important; }
     .safe { background:green !important; }
 
-    table { margin:auto; border-collapse:collapse; margin-top:40px;}
+    #tableContainer {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 40px;
+    }
+
+    table { margin:auto; border-collapse:collapse;}
     th,td { border:1px solid white; padding:8px; }
 
     canvas { max-width: 90%; margin-top: 30px; }
@@ -38,7 +44,7 @@
 <br><br>
 <button onclick="startLog()">START</button>
 <button onclick="stopLog()">STOP</button>
-<button onclick="resetData()">RESET DATA</button>
+<button onclick="resetData()">RESET</button>
 
 <h2>📈 Grafik Suhu & Humidity</h2>
 <canvas id="chart1"></canvas>
@@ -46,12 +52,14 @@
 <h2>📈 Grafik Gas</h2>
 <canvas id="chart2"></canvas>
 
-<h2>📊 Data Lengkap</h2>
+<h2>📊 Data (50 Terakhir)</h2>
 
+<div id="tableContainer">
 <table>
 <tr><th>Waktu</th><th>Suhu</th><th>Hum</th><th>Gas</th><th>Status</th></tr>
 <tbody id="data"></tbody>
 </table>
+</div>
 
 <script>
 const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
@@ -78,17 +86,22 @@ function loadData(){
 
   let gasCard = document.getElementById("gasCard");
 
+  // reset warna
+  gasCard.classList.remove("danger","safe");
+  gasCard.style.background="";
+
   if(last.gas > 1800){
     gasCard.className="card danger";
   } else if(last.gas > 1200){
-    gasCard.className="card";
     gasCard.style.background="orange";
   } else {
     gasCard.className="card safe";
   }
 
-  // TABEL FULL
-  data.forEach(d=>{
+  // 🔥 hanya 50 data terakhir
+  let limitedData = data.slice(-50);
+
+  limitedData.forEach(d=>{
     table.innerHTML += `
     <tr>
       <td>${d.waktu}</td>
@@ -99,7 +112,7 @@ function loadData(){
     </tr>`;
   });
 
-  // GRAFIK (20 DATA TERAKHIR)
+  // grafik 20 data terakhir
   let lastData = data.slice(-20);
 
   lastData.forEach(d=>{
@@ -117,8 +130,8 @@ function loadData(){
     data: {
       labels: waktuArr,
       datasets: [
-        { label: "Suhu (°C)", data: suhuArr },
-        { label: "Humidity (%)", data: humArr }
+        { label: "Suhu", data: suhuArr },
+        { label: "Humidity", data: humArr }
       ]
     }
   });
@@ -152,13 +165,12 @@ function stopLog(){
 }
 
 function resetData(){
- if(confirm("Yakin reset semua data?")){
+ if(confirm("Reset semua data?")){
    fetch(url+"?mode=reset")
-   .then(()=>alert("Data berhasil direset"));
+   .then(()=>alert("Data direset"));
  }
 }
 
-// AUTO REFRESH
 loadData();
 setInterval(loadData,3000);
 </script>
