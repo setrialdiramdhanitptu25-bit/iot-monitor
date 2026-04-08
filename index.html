@@ -29,6 +29,8 @@
   <div class="card" id="gasCard"><h3>Gas</h3><div id="gas">-</div></div>
 </div>
 
+<h3>Status Logging: <span id="logStatus">-</span></h3>
+
 <h3>Interval (detik)</h3>
 <input type="number" id="interval" value="5">
 <button onclick="setIntervalData()">SET</button>
@@ -36,6 +38,7 @@
 <br><br>
 <button onclick="startLog()">START</button>
 <button onclick="stopLog()">STOP</button>
+<button onclick="resetData()">RESET DATA</button>
 
 <h2>📈 Grafik Suhu & Humidity</h2>
 <canvas id="chart1"></canvas>
@@ -43,8 +46,7 @@
 <h2>📈 Grafik Gas</h2>
 <canvas id="chart2"></canvas>
 
-<!-- 🔥 TABEL DI PALING BAWAH -->
-<h2>📊 Data Lengkap (Realtime Spreadsheet)</h2>
+<h2>📊 Data Lengkap</h2>
 
 <table>
 <tr><th>Waktu</th><th>Suhu</th><th>Hum</th><th>Gas</th><th>Status</th></tr>
@@ -70,23 +72,22 @@ function loadData(){
 
   let last = data[data.length-1];
 
-  // ===== CARD =====
   document.getElementById("suhu").innerText = last.suhu + " °C";
   document.getElementById("hum").innerText = last.hum + " %";
   document.getElementById("gas").innerText = last.gas;
 
   let gasCard = document.getElementById("gasCard");
 
-  if(last.gas > 700){
+  if(last.gas > 1800){
     gasCard.className="card danger";
-  } else if(last.gas > 400){
+  } else if(last.gas > 1200){
     gasCard.className="card";
     gasCard.style.background="orange";
   } else {
     gasCard.className="card safe";
   }
 
-  // 🔥 TABEL FULL DATA (SEMUA)
+  // TABEL FULL
   data.forEach(d=>{
     table.innerHTML += `
     <tr>
@@ -98,7 +99,7 @@ function loadData(){
     </tr>`;
   });
 
-  // 🔥 GRAFIK (AMBIL TERAKHIR 20 BIAR RINGAN)
+  // GRAFIK (20 DATA TERAKHIR)
   let lastData = data.slice(-20);
 
   lastData.forEach(d=>{
@@ -135,21 +136,31 @@ function loadData(){
  });
 }
 
+// ===== CONTROL =====
 function setIntervalData(){
  fetch(url+"?mode=set&interval="+document.getElementById("interval").value);
 }
 
 function startLog(){
  fetch(url+"?mode=set&logging=1");
+ document.getElementById("logStatus").innerText = "AKTIF";
 }
 
 function stopLog(){
  fetch(url+"?mode=set&logging=0");
+ document.getElementById("logStatus").innerText = "NONAKTIF";
 }
 
+function resetData(){
+ if(confirm("Yakin reset semua data?")){
+   fetch(url+"?mode=reset")
+   .then(()=>alert("Data berhasil direset"));
+ }
+}
+
+// AUTO REFRESH
 loadData();
 setInterval(loadData,3000);
-
 </script>
 
 </body>
