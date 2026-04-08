@@ -26,7 +26,6 @@
     .danger { background:red !important; }
     .safe { background:green !important; }
 
-    /* 🔥 SCROLL TABLE */
     #tableContainer {
       max-height: 400px;
       overflow-y: auto;
@@ -101,7 +100,8 @@ const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4
 let chart1, chart2;
 
 function loadData(){
- fetch(url)
+
+ fetch(url + "?t=" + new Date().getTime()) // 🔥 anti cache
  .then(res=>res.json())
  .then(data=>{
 
@@ -132,7 +132,7 @@ function loadData(){
     gasCard.className="card safe";
   }
 
-  // 🔥 TAMPILKAN SEMUA DATA
+  // TABLE
   data.forEach(d=>{
     table.innerHTML += `
     <tr>
@@ -144,11 +144,11 @@ function loadData(){
     </tr>`;
   });
 
-  // 🔥 AUTO SCROLL KE BAWAH
+  // AUTO SCROLL
   let container = document.getElementById("tableContainer");
   container.scrollTop = container.scrollHeight;
 
-  // 🔥 GRAFIK (AMBIL 20 TERAKHIR)
+  // GRAFIK
   let lastData = data.slice(-20);
 
   lastData.forEach(d=>{
@@ -185,31 +185,50 @@ function loadData(){
  });
 }
 
+// 🔥 AMBIL STATUS DARI SERVER (BENERAN REALTIME)
+function loadStatus(){
+ fetch(url+"?mode=get")
+ .then(res=>res.text())
+ .then(res=>{
+   let split = res.split(",");
+   document.getElementById("interval").value = split[0];
+   document.getElementById("logStatus").innerText =
+     (split[1] == "1") ? "AKTIF" : "NONAKTIF";
+ });
+}
+
 // CONTROL
 function setIntervalData(){
  fetch(url+"?mode=set&interval="+document.getElementById("interval").value);
 }
 
 function startLog(){
- fetch(url+"?mode=set&logging=1");
- document.getElementById("logStatus").innerText = "AKTIF";
+ fetch(url+"?mode=set&logging=1").then(loadStatus);
 }
 
 function stopLog(){
- fetch(url+"?mode=set&logging=0");
- document.getElementById("logStatus").innerText = "NONAKTIF";
+ fetch(url+"?mode=set&logging=0").then(loadStatus);
 }
 
 function resetData(){
  if(confirm("Reset semua data?")){
    fetch(url+"?mode=reset")
-   .then(()=>alert("Data direset"));
+   .then(res=>res.text())
+   .then(res=>{
+     alert(res);
+     loadData(); // 🔥 refresh langsung
+   });
  }
 }
 
-// AUTO REFRESH
+// AUTO
 loadData();
-setInterval(loadData,3000);
+loadStatus();
+
+setInterval(()=>{
+  loadData();
+  loadStatus();
+},3000);
 </script>
 
 </body>
