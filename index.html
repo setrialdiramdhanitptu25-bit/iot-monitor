@@ -12,7 +12,7 @@
     .danger { background:red !important; }
     .safe { background:green !important; }
 
-    table { margin:auto; border-collapse:collapse; }
+    table { margin:auto; border-collapse:collapse; margin-top:40px;}
     th,td { border:1px solid white; padding:8px; }
 
     canvas { max-width: 90%; margin-top: 30px; }
@@ -37,18 +37,19 @@
 <button onclick="startLog()">START</button>
 <button onclick="stopLog()">STOP</button>
 
-<h2>📊 Data</h2>
-
-<table>
-<tr><th>Waktu</th><th>Suhu</th><th>Hum</th><th>Gas</th><th>Status</th></tr>
-<tbody id="data"></tbody>
-</table>
-
 <h2>📈 Grafik Suhu & Humidity</h2>
 <canvas id="chart1"></canvas>
 
 <h2>📈 Grafik Gas</h2>
 <canvas id="chart2"></canvas>
+
+<!-- 🔥 TABEL DI PALING BAWAH -->
+<h2>📊 Data Lengkap (Realtime Spreadsheet)</h2>
+
+<table>
+<tr><th>Waktu</th><th>Suhu</th><th>Hum</th><th>Gas</th><th>Status</th></tr>
+<tbody id="data"></tbody>
+</table>
 
 <script>
 const url = "https://script.google.com/macros/s/AKfycbxo_vsg6_AbjO8HAYupSaxccX-4ecH2MYqK4pJWUarwctjkqJdzOPvwfUI3L-RpaYxsoA/exec";
@@ -85,8 +86,8 @@ function loadData(){
     gasCard.className="card safe";
   }
 
-  // ===== TABEL + DATA =====
-  data.slice(-20).forEach(d=>{
+  // 🔥 TABEL FULL DATA (SEMUA)
+  data.forEach(d=>{
     table.innerHTML += `
     <tr>
       <td>${d.waktu}</td>
@@ -95,83 +96,45 @@ function loadData(){
       <td>${d.gas}</td>
       <td>${d.status}</td>
     </tr>`;
+  });
 
+  // 🔥 GRAFIK (AMBIL TERAKHIR 20 BIAR RINGAN)
+  let lastData = data.slice(-20);
+
+  lastData.forEach(d=>{
     suhuArr.push(Number(d.suhu));
     humArr.push(Number(d.hum));
     gasArr.push(Number(d.gas));
     waktuArr.push(d.waktu);
   });
 
-  // ===== RESET CHART =====
   if(chart1) chart1.destroy();
   if(chart2) chart2.destroy();
 
-  // ===== CHART 1 (SUHU + HUM) =====
   chart1 = new Chart(document.getElementById("chart1"), {
     type: "line",
     data: {
       labels: waktuArr,
       datasets: [
-        {
-          label: "Suhu (°C)",
-          data: suhuArr,
-          borderWidth: 2,
-          tension: 0.3
-        },
-        {
-          label: "Humidity (%)",
-          data: humArr,
-          borderWidth: 2,
-          tension: 0.3
-        }
+        { label: "Suhu (°C)", data: suhuArr },
+        { label: "Humidity (%)", data: humArr }
       ]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: "Suhu & Humidity"
-          }
-        }
-      }
     }
   });
 
-  // ===== CHART 2 (GAS) =====
   chart2 = new Chart(document.getElementById("chart2"), {
     type: "line",
     data: {
       labels: waktuArr,
       datasets: [
-        {
-          label: "Gas (ADC)",
-          data: gasArr,
-          borderWidth: 2,
-          tension: 0.3
-        }
+        { label: "Gas", data: gasArr }
       ]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: "Gas Level"
-          }
-        }
-      }
     }
   });
 
  });
 }
 
-// ===== CONTROL =====
 function setIntervalData(){
  fetch(url+"?mode=set&interval="+document.getElementById("interval").value);
 }
@@ -184,7 +147,6 @@ function stopLog(){
  fetch(url+"?mode=set&logging=0");
 }
 
-// ===== AUTO REFRESH =====
 loadData();
 setInterval(loadData,3000);
 
